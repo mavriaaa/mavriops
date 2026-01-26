@@ -1,0 +1,8 @@
+{
+  "name": "MavriOps Pro - Enterprise Hub",
+  "description": "Professional operation management platform for enterprise workflows, procurement, accounting, and field dispatching.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
