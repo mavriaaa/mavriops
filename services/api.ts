@@ -1,117 +1,212 @@
 
-import { WorkItem, AuditLog, Notification, Message, Request, RequestStatus } from '../types';
-import { MOCK_WORK_ITEMS, MOCK_REQUESTS } from '../constants';
+import { 
+  WorkItem, WorkItemType, WorkItemStatus, Role, Priority, 
+  Message, User, Attachment, UserPreferences, Notification 
+} from '../types';
 
-const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
-
-// Initialize local storage with mock data if empty
-const initStorage = () => {
-  if (!localStorage.getItem('pro_work_items')) {
-    localStorage.setItem('pro_work_items', JSON.stringify(MOCK_WORK_ITEMS));
-  }
-  if (!localStorage.getItem('pro_requests')) {
-    localStorage.setItem('pro_requests', JSON.stringify(MOCK_REQUESTS));
-  }
+const STORAGE_KEYS = {
+  WORK_ITEMS: 'mavri_work_items_v2',
+  PREFERENCES: 'mavri_user_prefs',
+  AUDIT: 'mavri_audit_logs',
+  MESSAGES: 'mavri_messages',
+  NOTIFICATIONS: 'mavri_notifications'
 };
 
-initStorage();
+export class ApiService {
+  private static get<T>(key: string): T[] {
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : [];
+  }
 
-export const ApiService = {
-  async fetchWorkItems(): Promise<WorkItem[]> {
-    await delay(300);
-    const stored = localStorage.getItem('pro_work_items');
-    return stored ? JSON.parse(stored) : [];
-  },
+  private static save(key: string, data: any) {
+    localStorage.setItem(key, JSON.stringify(data));
+  }
 
-  async createWorkItem(item: WorkItem): Promise<WorkItem> {
-    const stored = await this.fetchWorkItems();
-    const newList = [item, ...stored];
-    localStorage.setItem('pro_work_items', JSON.stringify(newList));
-    
-    await this.createAuditLog({
-      id: Math.random().toString(36).substr(2, 9),
-      actorId: item.createdBy,
-      action: 'WORK_ITEM_CREATED',
-      entityType: 'WORK_ITEM',
-      entityId: item.id,
-      payload: item,
-      createdAt: new Date().toISOString()
+  static async globalSearch(query: string): Promise<any[]> {
+    const items = this.get<WorkItem>(STORAGE_KEYS.WORK_ITEMS);
+    const q = query.toLowerCase();
+    return items.filter(i => 
+      i.title.toLowerCase().includes(q) || 
+      i.id.toLowerCase().includes(q) ||
+      i.siteId.toLowerCase().includes(q)
+    ).slice(0, 10);
+  }
+
+  static async uploadFile(file: File, onProgress: (p: number) => void): Promise<Attachment> {
+    return new Promise((resolve) => {
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 20;
+        onProgress(progress);
+        if (progress >= 100) {
+          clearInterval(interval);
+          resolve({
+            id: Math.random().toString(36).substr(2, 9),
+            name: file.name,
+            url: URL.createObjectURL(file),
+            size: file.size,
+            type: file.type,
+            uploadedBy: 'u1',
+            createdAt: new Date().toISOString()
+          });
+        }
+      }, 200);
     });
+  }
 
+  static async fetchWorkItems(): Promise<WorkItem[]> {
+    return this.get<WorkItem>(STORAGE_KEYS.WORK_ITEMS);
+  }
+
+  static async fetchWorkItemsBySite(siteId: string): Promise<WorkItem[]> {
+    const all = await this.fetchWorkItems();
+    return all.filter(item => item.siteId === siteId || item.siteId === 'GENEL');
+  }
+
+  static async createWorkItem(data: Partial<WorkItem>, creator: User): Promise<WorkItem> {
+    const items = this.get<WorkItem>(STORAGE_KEYS.WORK_ITEMS);
+    const newItem: WorkItem = {
+      id: `${data.type?.charAt(0) || 'W'}-${Math.floor(1000 + Math.random() * 9000)}`,
+      status: data.status || WorkItemStatus.SUBMITTED,
+      priority: data.priority || Priority.MEDIUM,
+      attachments: [],
+      tags: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      companyId: creator.companyId,
+      createdBy: creator.id,
+      ...data
+    } as WorkItem;
+
+    items.unshift(newItem);
+    this.save(STORAGE_KEYS.WORK_ITEMS, items);
+    this.logAudit(newItem.id, creator.id, 'CREATE', newItem);
+    return newItem;
+  }
+
+  static async updateWorkItem(id: string, updates: Partial<WorkItem>, actorId: string): Promise<WorkItem> {
+    const items = this.get<WorkItem>(STORAGE_KEYS.WORK_ITEMS);
+    const idx = items.findIndex(i => i.id === id);
+    if (idx === -1) throw new Error("Item not found");
+    
+    items[idx] = { ...items[idx], ...updates, updatedAt: new Date().toISOString() };
+    this.save(STORAGE_KEYS.WORK_ITEMS, items);
+    this.logAudit(id, actorId, 'UPDATE', updates);
+    return items[idx];
+  }
+
+  static async assignWorkItem(id: string, assigneeId: string, actorId: string): Promise<WorkItem> {
+    return this.updateWorkItem(id, { 
+      assigneeId, 
+      status: WorkItemStatus.IN_PROGRESS 
+    }, actorId);
+  }
+
+  static async completeWorkItem(id: string, data: { note: string, attachments: Attachment[] }, actorId: string): Promise<WorkItem> {
+    return this.updateWorkItem(id, {
+      status: WorkItemStatus.DONE,
+      completionNote: data.note,
+      attachments: data.attachments,
+      completedBy: actorId,
+      completedAt: new Date().toISOString()
+    }, actorId);
+  }
+
+  static async approveStep(id: string, actor: User, note: string): Promise<WorkItem> {
+    const items = this.get<WorkItem>(STORAGE_KEYS.WORK_ITEMS);
+    const idx = items.findIndex(i => i.id === id);
+    if (idx === -1) throw new Error("Item not found");
+    
+    const item = items[idx];
+    if (item.requestData && item.requestData.approvalChain) {
+        const chain = [...item.requestData.approvalChain];
+        const stepIdx = chain.findIndex((s: any) => s.status === 'PENDING');
+        if (stepIdx !== -1) {
+            chain[stepIdx] = {
+                ...chain[stepIdx],
+                status: 'APPROVED',
+                userId: actor.id,
+                decidedAt: new Date().toISOString(),
+                note
+            };
+            item.requestData.approvalChain = chain;
+            if (!chain.some((s: any) => s.status === 'PENDING')) {
+                item.status = WorkItemStatus.APPROVED;
+            } else {
+                item.status = WorkItemStatus.IN_REVIEW;
+            }
+        }
+    }
+    
+    items[idx] = { ...item, updatedAt: new Date().toISOString() };
+    this.save(STORAGE_KEYS.WORK_ITEMS, items);
+    this.logAudit(id, actor.id, 'APPROVE_STEP', { note });
     return item;
-  },
+  }
 
-  async fetchRequests(): Promise<Request[]> {
-    await delay(200);
-    const stored = localStorage.getItem('pro_requests');
-    return stored ? JSON.parse(stored) : [];
-  },
+  static async fetchMessages(channelId?: string, parentId?: string): Promise<Message[]> {
+    const all = this.get<Message>(STORAGE_KEYS.MESSAGES);
+    if (parentId) return all.filter(m => m.parentId === parentId);
+    return all.filter(m => m.channelId === channelId);
+  }
 
-  async updateRequestStatus(requestId: string, status: RequestStatus, actorId: string): Promise<void> {
-    const requests = await this.fetchRequests();
-    const updated = requests.map(r => r.id === requestId ? { ...r, status } : r);
-    localStorage.setItem('pro_requests', JSON.stringify(updated));
-    
-    await this.createAuditLog({
-      id: Math.random().toString(36).substr(2, 9),
-      actorId,
-      action: `REQUEST_${status}`,
-      entityType: 'REQUEST',
-      entityId: requestId,
-      payload: { status },
-      createdAt: new Date().toISOString()
-    });
-  },
+  static async fetchChannelHistory(channelId: string, limit: number = 50): Promise<Message[]> {
+    const all = this.get<Message>(STORAGE_KEYS.MESSAGES);
+    return all.filter(m => m.channelId === channelId).slice(-limit);
+  }
 
-  async createRequest(request: Request): Promise<Request> {
-    const stored = await this.fetchRequests();
-    const newList = [request, ...stored];
-    localStorage.setItem('pro_requests', JSON.stringify(newList));
-    return request;
-  },
-
-  async createAuditLog(log: AuditLog) {
-    const stored = localStorage.getItem('pro_audit_logs');
-    const logs = stored ? JSON.parse(stored) : [];
-    logs.unshift(log);
-    localStorage.setItem('pro_audit_logs', JSON.stringify(logs));
-  },
-
-  async getNotifications(): Promise<Notification[]> {
-    return [
-      {
-        id: 'n1',
-        userId: 'u1',
-        title: 'Critical Escalation',
-        content: 'WorkItem WI-1001 has exceeded SLA response time.',
-        isRead: false,
-        type: 'escalation',
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: 'n2',
-        userId: 'u1',
-        title: 'Approval Required',
-        content: 'Deniz M. submitted PR #1005 for your review.',
-        isRead: false,
-        type: 'approval',
-        createdAt: new Date().toISOString()
-      }
-    ];
-  },
-
-  async fetchMessages(channelId: string): Promise<Message[]> {
-    await delay(100);
-    const key = `msgs_${channelId}`;
-    const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : [];
-  },
-
-  async sendMessage(msg: Message): Promise<Message> {
-    const key = `msgs_${msg.channelId}`;
-    const msgs = await this.fetchMessages(msg.channelId || 'general');
-    const newList = [...msgs, msg];
-    localStorage.setItem(key, JSON.stringify(newList));
+  static async sendMessage(msg: Message): Promise<Message> {
+    const all = this.get<Message>(STORAGE_KEYS.MESSAGES);
+    all.push(msg);
+    this.save(STORAGE_KEYS.MESSAGES, all);
     return msg;
   }
-};
+
+  static async updateMessage(id: string, updates: Partial<Message>): Promise<Message> {
+    const all = this.get<Message>(STORAGE_KEYS.MESSAGES);
+    const idx = all.findIndex(m => m.id === id);
+    if (idx !== -1) {
+      all[idx] = { ...all[idx], ...updates };
+      this.save(STORAGE_KEYS.MESSAGES, all);
+      return all[idx];
+    }
+    throw new Error("Message not found");
+  }
+
+  static async convertMessageToTask(msg: Message, actor: User): Promise<WorkItem> {
+    return this.createWorkItem({
+      type: WorkItemType.TASK,
+      title: `Task: ${msg.content.substring(0, 40)}${msg.content.length > 40 ? '...' : ''}`,
+      description: msg.content,
+      status: WorkItemStatus.TODO,
+      priority: Priority.MEDIUM,
+      siteId: 'GENEL'
+    }, actor);
+  }
+
+  static savePreferences(prefs: UserPreferences) {
+    localStorage.setItem(STORAGE_KEYS.PREFERENCES, JSON.stringify(prefs));
+  }
+
+  static getPreferences(): UserPreferences {
+    const saved = localStorage.getItem(STORAGE_KEYS.PREFERENCES);
+    return saved ? JSON.parse(saved) : {
+      theme: 'dark',
+      language: 'tr',
+      sidebarCollapsed: false,
+      accentColor: '#4f46e5',
+      notificationLevel: 'all',
+      defaultLanding: '/'
+    };
+  }
+
+  private static logAudit(entityId: string, actorId: string, action: string, payload: any) {
+    const logs = this.get(STORAGE_KEYS.AUDIT);
+    logs.unshift({ id: Date.now(), entityId, actorId, action, payload, time: new Date() });
+    this.save(STORAGE_KEYS.AUDIT, logs);
+  }
+
+  static async getNotifications(): Promise<Notification[]> {
+    return this.get<Notification>(STORAGE_KEYS.NOTIFICATIONS);
+  }
+}
