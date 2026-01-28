@@ -1,6 +1,4 @@
 
-
-
 import { 
   WorkItem, WorkItemType, WorkItemStatus, Role, Priority, 
   Message, User, Attachment, UserPreferences, Notification,
@@ -72,7 +70,6 @@ export class ApiService {
   static async createWorkItem(data: Partial<WorkItem>, creator: User): Promise<WorkItem> {
     const items = this.get<WorkItem>(STORAGE_KEYS.WORK_ITEMS);
     
-    // Enterprise logic: Workflow
     let finalRequestData = data.requestData || {};
     if (data.type === WorkItemType.REQUEST && ENABLE_WORKFLOW_BUILDER) {
         const wf = WorkflowService.findMatchingWorkflow(finalRequestData.type as RequestType, finalRequestData);
@@ -81,7 +78,6 @@ export class ApiService {
             this.logAudit(`WF-${wf.id}`, creator.id, 'WORKFLOW_APPLIED', { wfName: wf.name });
         }
         
-        // Enterprise logic: Budget
         if (ENABLE_BUDGETS) {
             const { isOver, budget } = BudgetService.checkLimit(data.siteId || 'GENEL', finalRequestData.amount || 0);
             if (isOver && budget) {
@@ -129,7 +125,6 @@ export class ApiService {
     return items[idx];
   }
 
-  // Fix: Added missing completeWorkItem method to handle item completion and satisfy call in WorkItemCenter.tsx
   static async completeWorkItem(id: string, completion: { note: string, attachments: Attachment[] }, actorId: string): Promise<WorkItem> {
     const items = this.get<WorkItem>(STORAGE_KEYS.WORK_ITEMS);
     const idx = items.findIndex(i => i.id === id);
@@ -148,17 +143,6 @@ export class ApiService {
     this.save(STORAGE_KEYS.WORK_ITEMS, items);
     this.logAudit(id, actorId, 'COMPLETE', completion);
     return items[idx];
-  }
-
-  static async updateRaci(id: string, raci: WorkItemRaci[], actorId: string): Promise<WorkItem> {
-      const item = await this.updateWorkItem(id, { raci }, actorId);
-      this.logAudit(id, actorId, 'RACI_UPDATED', raci);
-      // Notify 'Informed' users
-      const informed = raci.filter(r => r.role === 'I');
-      informed.forEach(i => {
-          this.sendNotification(i.userId, 'RACI_INFORMED', 'Bilgilendirme Ataması', `${id} nolu iş kaleminde bilgilendirme listesine eklendiniz.`);
-      });
-      return item;
   }
 
   static async approveStep(id: string, actor: User, note: string): Promise<WorkItem> {
@@ -181,7 +165,6 @@ export class ApiService {
             item.requestData.approvalChain = chain;
             if (!chain.some((s: any) => s.status === 'PENDING')) {
                 item.status = WorkItemStatus.APPROVED;
-                // Enterprise: Consumption
                 if (ENABLE_BUDGETS) {
                     BudgetService.consume(item.siteId, item.requestData.amount);
                     this.logAudit(item.id, actor.id, 'BUDGET_CONSUMED', { amount: item.requestData.amount });
@@ -204,11 +187,6 @@ export class ApiService {
     return all.filter(m => m.channelId === channelId);
   }
 
-  static async fetchChannelHistory(channelId: string, limit: number = 50): Promise<Message[]> {
-    const all = this.get<Message>(STORAGE_KEYS.MESSAGES);
-    return all.filter(m => m.channelId === channelId).slice(-limit);
-  }
-
   static async sendMessage(msg: Message): Promise<Message> {
     const all = this.get<Message>(STORAGE_KEYS.MESSAGES);
     all.push(msg);
@@ -225,17 +203,6 @@ export class ApiService {
       return all[idx];
     }
     throw new Error("Message not found");
-  }
-
-  static async convertMessageToTask(msg: Message, actor: User): Promise<WorkItem> {
-    return this.createWorkItem({
-      type: WorkItemType.TASK,
-      title: `Task: ${msg.content.substring(0, 40)}${msg.content.length > 40 ? '...' : ''}`,
-      description: msg.content,
-      status: WorkItemStatus.TODO,
-      priority: Priority.MEDIUM,
-      siteId: 'GENEL'
-    }, actor);
   }
 
   static savePreferences(prefs: UserPreferences) {
@@ -255,18 +222,18 @@ export class ApiService {
   }
 
   private static logAudit(entityId: string, actorId: string, action: string, payload: any) {
-    const logs = this.get(STORAGE_KEYS.AUDIT);
+    const logs = this.get<any>(STORAGE_KEYS.AUDIT);
     logs.unshift({ id: Date.now().toString(), entityId, actorId, action, payload, timestamp: new Date().toISOString() });
     this.save(STORAGE_KEYS.AUDIT, logs);
   }
 
-  private static sendNotification(userId: string, type: string, title: string, content: string) {
-      const notes = this.get<Notification>(STORAGE_KEYS.NOTIFICATIONS);
-      notes.unshift({ id: Date.now().toString(), userId, type, title, content, isRead: false, createdAt: new Date().toISOString() });
-      this.save(STORAGE_KEYS.NOTIFICATIONS, notes);
-  }
-
   static async getNotifications(): Promise<Notification[]> {
     return this.get<Notification>(STORAGE_KEYS.NOTIFICATIONS);
+  }
+
+  static async updateRaci(id: string, raci: WorkItemRaci[], actorId: string): Promise<WorkItem> {
+    const item = await this.updateWorkItem(id, { raci }, actorId);
+    this.logAudit(id, actorId, 'RACI_UPDATED', raci);
+    return item;
   }
 }
