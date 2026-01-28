@@ -3,7 +3,7 @@ import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../../App';
 import { ApiService } from '../../services/api';
 import { WorkItem, WorkItemType, WorkItemStatus, Priority, Role, Attachment } from '../../types';
-import { MOCK_USERS } from '../../constants';
+import { MOCK_USERS, ENABLE_RACI } from '../../constants';
 import { 
   Search, Clock, AlertTriangle, CheckCircle2, 
   ChevronRight, Tag, Zap, Paperclip, UserPlus, 
@@ -13,6 +13,7 @@ import {
   TrendingUp, Filter, Plus
 } from 'lucide-react';
 import AttachmentList from '../Common/AttachmentList';
+import RaciPanel from './RaciPanel';
 
 const WorkItemCenter: React.FC = () => {
   const context = useContext(AppContext);
@@ -34,6 +35,10 @@ const WorkItemCenter: React.FC = () => {
   const load = async () => {
     const data = await ApiService.fetchWorkItems();
     setItems(filter === 'HEPSİ' ? data : data.filter(i => i.type === filter));
+    if (detailItem) {
+        const updated = data.find(x => x.id === detailItem.id);
+        if (updated) setDetailItem(updated);
+    }
   };
 
   if (!context) return null;
@@ -132,6 +137,8 @@ const WorkItemCenter: React.FC = () => {
                {items.map(item => {
                  const assignee = MOCK_USERS.find(u => u.id === item.assigneeId);
                  const isMe = item.assigneeId === currentUser.id;
+                 const raciR = item.raci?.find(x => x.role === 'R');
+                 const raciA = item.raci?.find(x => x.role === 'A');
                  
                  return (
                    <tr key={item.id} onClick={() => setDetailItem(item)} className="hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-all cursor-pointer group">
@@ -147,9 +154,12 @@ const WorkItemCenter: React.FC = () => {
                          <div className="min-w-0">
                             <p className="text-[13px] font-semibold dark:text-white truncate uppercase tracking-tight">{item.title}</p>
                             <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-1"><MapPin size={10} /> {item.siteId}</p>
-                            <div className="h-1 w-24 bg-slate-100 dark:bg-slate-800 rounded-full mt-2 overflow-hidden">
-                               <div style={{ width: `${item.progress || 0}%` }} className="h-full bg-indigo-500 transition-all duration-500" />
-                            </div>
+                            {ENABLE_RACI && (raciR || raciA) && (
+                                <div className="flex gap-2 mt-2">
+                                    {raciR && <span className="text-[8px] bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 px-1.5 py-0.5 rounded font-black">R</span>}
+                                    {raciA && <span className="text-[8px] bg-rose-50 dark:bg-rose-900/30 text-rose-600 px-1.5 py-0.5 rounded font-black">A</span>}
+                                </div>
+                            )}
                          </div>
                       </td>
                       <td className="px-6 py-4">
@@ -212,17 +222,14 @@ const WorkItemCenter: React.FC = () => {
                              <p className="text-[13px] font-semibold dark:text-white uppercase mt-1">{detailItem.priority}</p>
                           </div>
                        </div>
-                       <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700/50">
-                          <div className="flex justify-between items-center mb-2">
-                             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2"><TrendingUp size={14} /> İlerleme</span>
-                             <span className="text-sm font-bold text-indigo-600">%{detailItem.progress || 0}</span>
-                          </div>
-                          <div className="h-2 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                             <div style={{ width: `${detailItem.progress || 0}%` }} className="h-full bg-indigo-500 transition-all duration-1000" />
-                          </div>
-                       </div>
                     </div>
                  </section>
+
+                 {ENABLE_RACI && (
+                     <section>
+                         <RaciPanel workItem={detailItem} currentUser={currentUser} onUpdate={load} />
+                     </section>
+                 )}
 
                  <section>
                     <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><FileText size={14} /> Açıklama</h4>

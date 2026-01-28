@@ -1,8 +1,14 @@
 
+
+
 import { 
   WorkItem, WorkItemType, WorkItemStatus, Role, Priority, 
-  Message, User, Attachment, UserPreferences, Notification 
+  Message, User, Attachment, UserPreferences, Notification,
+  RaciRole, WorkItemRaci, RequestType
 } from '../types';
+import { WorkflowService } from './workflowService';
+import { BudgetService } from './budgetService';
+import { ENABLE_WORKFLOW_BUILDER, ENABLE_BUDGETS } from '../constants';
 
 const STORAGE_KEYS = {
   WORK_ITEMS: 'mavri_work_items_v2',
@@ -65,6 +71,32 @@ export class ApiService {
 
   static async createWorkItem(data: Partial<WorkItem>, creator: User): Promise<WorkItem> {
     const items = this.get<WorkItem>(STORAGE_KEYS.WORK_ITEMS);
+    
+    // Enterprise logic: Workflow
+    let finalRequestData = data.requestData || {};
+    if (data.type === WorkItemType.REQUEST && ENABLE_WORKFLOW_BUILDER) {
+        const wf = WorkflowService.findMatchingWorkflow(finalRequestData.type as RequestType, finalRequestData);
+        if (wf) {
+            finalRequestData.approvalChain = WorkflowService.generateApprovalChain(wf);
+            this.logAudit(`WF-${wf.id}`, creator.id, 'WORKFLOW_APPLIED', { wfName: wf.name });
+        }
+        
+        // Enterprise logic: Budget
+        if (ENABLE_BUDGETS) {
+            const { isOver, budget } = BudgetService.checkLimit(data.siteId || 'GENEL', finalRequestData.amount || 0);
+            if (isOver && budget) {
+                finalRequestData.isOverBudget = true;
+                finalRequestData.approvalChain.push({
+                    stepNo: finalRequestData.approvalChain.length + 1,
+                    roleRequired: budget.overLimitRoleRequired,
+                    status: 'PENDING',
+                    note: 'Bütçe aşımı nedeniyle ek onay gerekli.'
+                });
+                this.logAudit(budget.id, creator.id, 'BUDGET_OVER_LIMIT_TRIGGERED', { amount: finalRequestData.amount });
+            }
+        }
+    }
+
     const newItem: WorkItem = {
       id: `${data.type?.charAt(0) || 'W'}-${Math.floor(1000 + Math.random() * 9000)}`,
       status: data.status || WorkItemStatus.SUBMITTED,
@@ -75,7 +107,9 @@ export class ApiService {
       updatedAt: new Date().toISOString(),
       companyId: creator.companyId,
       createdBy: creator.id,
-      ...data
+      raci: data.raci || [],
+      ...data,
+      requestData: finalRequestData
     } as WorkItem;
 
     items.unshift(newItem);
@@ -95,21 +129,36 @@ export class ApiService {
     return items[idx];
   }
 
-  static async assignWorkItem(id: string, assigneeId: string, actorId: string): Promise<WorkItem> {
-    return this.updateWorkItem(id, { 
-      assigneeId, 
-      status: WorkItemStatus.IN_PROGRESS 
-    }, actorId);
+  // Fix: Added missing completeWorkItem method to handle item completion and satisfy call in WorkItemCenter.tsx
+  static async completeWorkItem(id: string, completion: { note: string, attachments: Attachment[] }, actorId: string): Promise<WorkItem> {
+    const items = this.get<WorkItem>(STORAGE_KEYS.WORK_ITEMS);
+    const idx = items.findIndex(i => i.id === id);
+    if (idx === -1) throw new Error("Item not found");
+    
+    items[idx] = { 
+      ...items[idx], 
+      status: WorkItemStatus.DONE,
+      completionNote: completion.note,
+      attachments: [...items[idx].attachments, ...completion.attachments],
+      completedAt: new Date().toISOString(),
+      completedBy: actorId,
+      updatedAt: new Date().toISOString(),
+      progress: 100
+    };
+    this.save(STORAGE_KEYS.WORK_ITEMS, items);
+    this.logAudit(id, actorId, 'COMPLETE', completion);
+    return items[idx];
   }
 
-  static async completeWorkItem(id: string, data: { note: string, attachments: Attachment[] }, actorId: string): Promise<WorkItem> {
-    return this.updateWorkItem(id, {
-      status: WorkItemStatus.DONE,
-      completionNote: data.note,
-      attachments: data.attachments,
-      completedBy: actorId,
-      completedAt: new Date().toISOString()
-    }, actorId);
+  static async updateRaci(id: string, raci: WorkItemRaci[], actorId: string): Promise<WorkItem> {
+      const item = await this.updateWorkItem(id, { raci }, actorId);
+      this.logAudit(id, actorId, 'RACI_UPDATED', raci);
+      // Notify 'Informed' users
+      const informed = raci.filter(r => r.role === 'I');
+      informed.forEach(i => {
+          this.sendNotification(i.userId, 'RACI_INFORMED', 'Bilgilendirme Ataması', `${id} nolu iş kaleminde bilgilendirme listesine eklendiniz.`);
+      });
+      return item;
   }
 
   static async approveStep(id: string, actor: User, note: string): Promise<WorkItem> {
@@ -132,6 +181,11 @@ export class ApiService {
             item.requestData.approvalChain = chain;
             if (!chain.some((s: any) => s.status === 'PENDING')) {
                 item.status = WorkItemStatus.APPROVED;
+                // Enterprise: Consumption
+                if (ENABLE_BUDGETS) {
+                    BudgetService.consume(item.siteId, item.requestData.amount);
+                    this.logAudit(item.id, actor.id, 'BUDGET_CONSUMED', { amount: item.requestData.amount });
+                }
             } else {
                 item.status = WorkItemStatus.IN_REVIEW;
             }
@@ -202,8 +256,14 @@ export class ApiService {
 
   private static logAudit(entityId: string, actorId: string, action: string, payload: any) {
     const logs = this.get(STORAGE_KEYS.AUDIT);
-    logs.unshift({ id: Date.now(), entityId, actorId, action, payload, time: new Date() });
+    logs.unshift({ id: Date.now().toString(), entityId, actorId, action, payload, timestamp: new Date().toISOString() });
     this.save(STORAGE_KEYS.AUDIT, logs);
+  }
+
+  private static sendNotification(userId: string, type: string, title: string, content: string) {
+      const notes = this.get<Notification>(STORAGE_KEYS.NOTIFICATIONS);
+      notes.unshift({ id: Date.now().toString(), userId, type, title, content, isRead: false, createdAt: new Date().toISOString() });
+      this.save(STORAGE_KEYS.NOTIFICATIONS, notes);
   }
 
   static async getNotifications(): Promise<Notification[]> {

@@ -1,4 +1,5 @@
 
+
 export enum Role {
   OWNER = 'OWNER',
   ADMIN = 'ADMIN',
@@ -118,6 +119,70 @@ export enum RequestStatus {
   REJECTED = 'REJECTED'
 }
 
+// --- NEW ENTERPRISE TYPES ---
+
+export enum RaciRole {
+  RESPONSIBLE = 'R',
+  ACCOUNTABLE = 'A',
+  CONSULTED = 'C',
+  INFORMED = 'I'
+}
+
+export interface WorkItemRaci {
+  workItemId: string;
+  userId: string;
+  role: RaciRole;
+}
+
+export interface WorkflowDefinition {
+  id: string;
+  name: string;
+  appliesTo: RequestType;
+  isActive: boolean;
+  steps: WorkflowStep[];
+  conditions: WorkflowCondition[];
+}
+
+export interface WorkflowStep {
+  id: string;
+  stepNo: number;
+  mode: 'ROLE' | 'USER' | 'DYNAMIC';
+  roleRequired?: Role;
+  userId?: string;
+  dynamicKey?: 'SITE_MANAGER' | 'PROJECT_MANAGER';
+  slaHours?: number;
+  requireNote: boolean;
+}
+
+export interface WorkflowCondition {
+  field: 'amount' | 'category' | 'siteId';
+  operator: '>' | '<' | '==' | 'in';
+  value: any;
+}
+
+export interface Budget {
+  id: string;
+  scopeType: 'SITE' | 'PROJECT';
+  scopeId: string;
+  period: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL';
+  amount: number;
+  currency: string;
+  consumed: number;
+  overLimitRoleRequired: Role;
+}
+
+export interface AuditLog {
+  id: string;
+  entityId: string;
+  actorId: string;
+  action: string;
+  payload: any;
+  timestamp: string;
+}
+
+// --- END NEW TYPES ---
+
+// Fix: Added Request interface to satisfy constants.ts imports
 export interface Request {
   id: string;
   requesterId: string;
@@ -131,12 +196,13 @@ export interface Request {
   createdAt: string;
 }
 
+// Fix: Added Task interface to satisfy constants.ts imports
 export interface Task {
   id: string;
   title: string;
   status: string;
   priority: string;
-  assigneeId?: string;
+  assigneeId: string;
 }
 
 export interface WorkItem {
@@ -161,6 +227,7 @@ export interface WorkItem {
   completionNote?: string;
   completedAt?: string;
   completedBy?: string;
+  raci?: WorkItemRaci[]; // Added additive
 }
 
 export interface ToastMessage {

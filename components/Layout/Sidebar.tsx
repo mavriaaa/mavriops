@@ -6,10 +6,11 @@ import {
   Wallet, Truck, BarChart3, Settings, Moon, Sun,
   Languages, Activity, MessageSquare, ShieldCheck,
   Briefcase, Maximize, Minimize, User as UserIcon,
-  ChevronRight
+  ChevronRight, GitBranch, ShieldAlert
 } from 'lucide-react';
 import { AppContext } from '../../App';
 import { Role } from '../../types';
+import { ENABLE_WORKFLOW_BUILDER, ENABLE_BUDGETS } from '../../constants';
 
 const Sidebar: React.FC = () => {
   const context = useContext(AppContext);
@@ -62,8 +63,8 @@ const Sidebar: React.FC = () => {
           <ShieldCheck size={20} />
         </div>
         <div>
-          <h1 className="text-base font-bold tracking-tight dark:text-white leading-none">MavriOps</h1>
-          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-1 block">Enterprise v2.5</span>
+          <h1 className="text-base font-bold tracking-tight dark:text-white leading-none">MavriOps Pro</h1>
+          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-1 block">Enterprise v3.0</span>
         </div>
       </div>
 
@@ -82,6 +83,16 @@ const Sidebar: React.FC = () => {
         <NavItem label={t('hr')} icon={Briefcase} path="/hr" />
         <NavItem label={t('procurement')} icon={ShoppingCart} path="/procurement" />
         <NavItem label={t('accounting')} icon={Wallet} path="/accounting" />
+
+        {(ENABLE_WORKFLOW_BUILDER || ENABLE_BUDGETS) && (
+          <div className="pt-6 pb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 opacity-60">Enterprise</div>
+        )}
+        {ENABLE_WORKFLOW_BUILDER && (currentUser.role === Role.OWNER || currentUser.role === Role.ADMIN) && (
+          <NavItem label="Workflow Studio" icon={GitBranch} path="/admin/workflow" />
+        )}
+        {ENABLE_BUDGETS && (
+          <NavItem label="Bütçe Denetimi" icon={ShieldAlert} path="/finance/budgets" />
+        )}
       </div>
 
       <div className="p-4 border-t border-slate-200 dark:border-slate-800/60 space-y-4">

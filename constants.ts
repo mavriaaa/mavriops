@@ -1,5 +1,10 @@
 
-import { Role, User, WorkItemType, WorkItemStatus, Priority, WorkItem, Organization, Channel, Board, List, Card, Request, RequestType, RequestStatus, Task } from './types';
+import { Role, User, WorkItemType, WorkItemStatus, Priority, WorkItem, Organization, Channel, Board, List, Card, Request, RequestType, RequestStatus, Task, Budget, WorkflowDefinition } from './types';
+
+// --- ENTERPRISE FEATURE FLAGS ---
+export const ENABLE_WORKFLOW_BUILDER = true; // Set to true for implementation demo
+export const ENABLE_BUDGETS = true;
+export const ENABLE_RACI = true;
 
 export const MOCK_ORG: Organization[] = [
   { id: 'comp-1', name: 'Mavri Global A.Ş.', type: 'COMPANY' },
@@ -16,12 +21,34 @@ export const MOCK_USERS: User[] = [
   { id: 'u4', name: 'Barış Mühendis', role: Role.EMPLOYEE, avatar: 'https://i.pravatar.cc/150?u=baris', departmentId: 'dept-1', companyId: 'comp-1', status: 'online' },
 ];
 
+export const MOCK_BUDGETS: Budget[] = [
+  { id: 'b-1', scopeType: 'SITE', scopeId: 'site-a', period: 'MONTHLY', amount: 500000, consumed: 120000, currency: 'TRY', overLimitRoleRequired: Role.OWNER },
+  { id: 'b-2', scopeType: 'SITE', scopeId: 'site-b', period: 'MONTHLY', amount: 200000, consumed: 185000, currency: 'TRY', overLimitRoleRequired: Role.DIRECTOR },
+];
+
+export const MOCK_WORKFLOWS: WorkflowDefinition[] = [
+  {
+    id: 'wf-1',
+    name: 'Yüksek Tutarlı Satınalma',
+    appliesTo: RequestType.PURCHASE,
+    isActive: true,
+    conditions: [
+      { field: 'amount', operator: '>', value: 100000 }
+    ],
+    steps: [
+      { id: 'ws-1', stepNo: 1, mode: 'ROLE', roleRequired: Role.MANAGER, requireNote: true },
+      { id: 'ws-2', stepNo: 2, mode: 'ROLE', roleRequired: Role.DIRECTOR, requireNote: true },
+      { id: 'ws-3', stepNo: 3, mode: 'ROLE', roleRequired: Role.OWNER, requireNote: true },
+    ]
+  }
+];
+
 export const MOCK_WORK_ITEMS: WorkItem[] = [
   {
     id: 'WI-1001',
     type: WorkItemType.REQUEST,
     title: 'Acil Beton Satınalma - Saha A',
-    description: 'Köprü ayakları için 200m3 C30 beton ihtiyacı. Döküm takvimi sıkışık.',
+    description: 'Köprü ayakları için 200m3 C30 beton ihtiyacı.',
     status: WorkItemStatus.IN_REVIEW,
     priority: Priority.CRITICAL,
     createdBy: 'u4',
@@ -44,111 +71,11 @@ export const MOCK_WORK_ITEMS: WorkItem[] = [
         { stepNo: 1, roleRequired: Role.SUPERVISOR, status: 'APPROVED', userId: 'u2', decidedAt: new Date(Date.now() - 86400000).toISOString(), note: 'Miktar projeye uygun, onaylandı.' },
         { stepNo: 2, roleRequired: Role.MANAGER, status: 'PENDING' }
       ]
-    }
-  },
-  {
-    id: 'WI-1002',
-    type: WorkItemType.REQUEST,
-    title: 'Jeneratör Yakıt İkmali - Saha B',
-    description: 'Kesintisiz güç kaynağı için 5000L Mazot alımı.',
-    status: WorkItemStatus.SUBMITTED,
-    priority: Priority.HIGH,
-    createdBy: 'u4',
-    assigneeId: 'u2',
-    companyId: 'comp-1',
-    siteId: 'site-b',
-    dueDate: '2024-05-22',
-    progress: 10,
-    attachments: [],
-    createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
-    updatedAt: new Date().toISOString(),
-    tags: ['Yakıt', 'Lojistik'],
-    requestData: {
-      amount: 215000,
-      currency: 'TRY',
-      category: 'SAHA',
-      costCenter: 'OPS-FUEL',
-      items: [],
-      approvalChain: [
-        { stepNo: 1, roleRequired: Role.SUPERVISOR, status: 'PENDING' },
-        { stepNo: 2, roleRequired: Role.MANAGER, status: 'PENDING' }
-      ]
-    }
-  },
-  {
-    id: 'WI-1003',
-    type: WorkItemType.REQUEST,
-    title: 'Saha Ekibi Konaklama Hakedişi',
-    description: 'Mayıs ayı dış ekip konaklama ve yemek giderleri.',
-    status: WorkItemStatus.IN_REVIEW,
-    priority: Priority.MEDIUM,
-    createdBy: 'u2',
-    assigneeId: 'u1',
-    companyId: 'comp-1',
-    siteId: 'site-a',
-    dueDate: '2024-05-30',
-    progress: 50,
-    attachments: [],
-    createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-    updatedAt: new Date().toISOString(),
-    tags: ['Personel', 'Finans'],
-    requestData: {
-      amount: 82400,
-      currency: 'TRY',
-      category: 'FINANS',
-      costCenter: 'HR-TRAVEL',
-      items: [],
-      approvalChain: [
-        { stepNo: 1, roleRequired: Role.MANAGER, status: 'APPROVED', userId: 'u2', decidedAt: new Date(Date.now() - 86400000).toISOString(), note: 'Faturalar kontrol edildi.' },
-        { stepNo: 2, roleRequired: Role.OWNER, status: 'PENDING' }
-      ]
-    }
-  },
-  {
-    id: 'WI-1004',
-    type: WorkItemType.REQUEST,
-    title: 'Kule Vinç Periyodik Muayene',
-    description: 'İSG yönetmeliği gereği zorunlu teknik kontrol hizmet alımı.',
-    status: WorkItemStatus.SUBMITTED,
-    priority: Priority.CRITICAL,
-    createdBy: 'u4',
-    assigneeId: 'u3',
-    companyId: 'comp-1',
-    siteId: 'site-c',
-    dueDate: '2024-05-21',
-    progress: 5,
-    attachments: [],
-    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-    updatedAt: new Date().toISOString(),
-    tags: ['İSG', 'Teknik'],
-    requestData: {
-      amount: 14500,
-      currency: 'TRY',
-      category: 'SAHA',
-      costCenter: 'SAFE-24',
-      items: [],
-      approvalChain: [
-        { stepNo: 1, roleRequired: Role.PROCUREMENT, status: 'PENDING' },
-        { stepNo: 2, roleRequired: Role.MANAGER, status: 'PENDING' }
-      ]
-    }
-  },
-  {
-    id: 'WI-2002',
-    type: WorkItemType.TASK,
-    title: 'Haftalık Ekipman Bakımı',
-    description: 'Ekskavatörlerin rutin yağ ve filtre değişimi.',
-    status: WorkItemStatus.TODO,
-    priority: Priority.MEDIUM,
-    createdBy: 'u2',
-    assigneeId: 'u4',
-    companyId: 'comp-1',
-    siteId: 'site-a',
-    progress: 0,
-    attachments: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    tags: ['Bakım']
+    },
+    raci: [
+      { workItemId: 'WI-1001', userId: 'u4', role: 'R' as any },
+      { workItemId: 'WI-1001', userId: 'u2', role: 'A' as any }
+    ]
   }
 ];
 

@@ -3,11 +3,13 @@ import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../../App';
 import { WorkItem, WorkItemType, WorkItemStatus, RequestType, Priority } from '../../types';
 import { ApiService } from '../../services/api';
+import { BudgetService } from '../../services/budgetService';
 import { 
   Plus, Search, Filter, Package, DollarSign, FileText, 
   ChevronRight, Calendar, Building, CreditCard, Layers,
-  Info, ShieldCheck, AlertCircle
+  Info, ShieldCheck, AlertCircle, Wallet
 } from 'lucide-react';
+import { ENABLE_BUDGETS } from '../../constants';
 
 const RequestCenter: React.FC = () => {
   const context = useContext(AppContext);
@@ -17,8 +19,10 @@ const RequestCenter: React.FC = () => {
     title: '',
     amount: 0,
     category: 'GENEL',
-    siteId: 'SAHA-A'
+    siteId: 'site-a'
   });
+
+  const [budgetHealth, setBudgetHealth] = useState<any>(null);
 
   useEffect(() => {
     ApiService.fetchWorkItems().then(items => {
@@ -26,8 +30,17 @@ const RequestCenter: React.FC = () => {
     });
   }, []);
 
+  useEffect(() => {
+    if (ENABLE_BUDGETS && newReq.siteId && newReq.amount > 0) {
+        const check = BudgetService.checkLimit(newReq.siteId, newReq.amount);
+        setBudgetHealth(check);
+    } else {
+        setBudgetHealth(null);
+    }
+  }, [newReq.siteId, newReq.amount]);
+
   if (!context) return null;
-  const { t, currentUser } = context;
+  const { t, currentUser, addToast } = context;
 
   const handleCreate = async () => {
     if (!newReq.title) return;
@@ -42,11 +55,13 @@ const RequestCenter: React.FC = () => {
         currency: 'TRY',
         category: newReq.category,
         costCenter: 'OPS-24',
+        type: RequestType.PURCHASE, // Default
         items: [],
         approvalChain: []
       }
     }, currentUser);
 
+    addToast('success', 'Talep İletildi', 'İş akışı ve bütçe kuralları kontrol edilerek süreç başlatıldı.');
     setIsModalOpen(false);
     ApiService.fetchWorkItems().then(items => {
       setRequests(items.filter(i => i.type === WorkItemType.REQUEST));
@@ -72,6 +87,28 @@ const RequestCenter: React.FC = () => {
           <Plus size={16} /> {t('newRequest')}
         </button>
       </div>
+
+      {ENABLE_BUDGETS && (
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-sm animate-in fade-in duration-700">
+              <div className="flex items-center gap-4">
+                  <div className="p-3 bg-emerald-500/10 text-emerald-500 rounded-xl"><Wallet size={20} /></div>
+                  <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Global Bütçe Durumu</p>
+                      <p className="text-sm font-black dark:text-white uppercase">Harcama Kapasitesi: Nominal</p>
+                  </div>
+              </div>
+              <div className="flex gap-4">
+                 <div className="text-right">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">Toplam Tahsisat</p>
+                    <p className="text-xs font-black dark:text-white">₺700.000</p>
+                 </div>
+                 <div className="text-right">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">Kullanılan</p>
+                    <p className="text-xs font-black text-indigo-500">₺305.000</p>
+                 </div>
+              </div>
+          </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {[
@@ -106,7 +143,7 @@ const RequestCenter: React.FC = () => {
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {requests.map(req => {
-              const activeStep = req.requestData?.approvalChain.find(s => s.status === 'PENDING');
+              const activeStep = req.requestData?.approvalChain?.find((s: any) => s.status === 'PENDING');
               return (
                 <tr key={req.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
                   <td className="px-8 py-6">
@@ -176,7 +213,6 @@ const RequestCenter: React.FC = () => {
                       className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl p-4 text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner" 
                       placeholder="Örn: Caterpillar Yedek Parça Bakımı"
                     />
-                    <p className="text-[8px] font-bold text-slate-400 uppercase ml-1">Talebin amacını açıkça belirten bir başlık giriniz.</p>
                  </div>
                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -192,38 +228,50 @@ const RequestCenter: React.FC = () => {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase text-slate-400">{t('category')}</label>
+                      <label className="text-[10px] font-black uppercase text-slate-400">Saha</label>
                       <select 
-                        value={newReq.category}
-                        onChange={(e) => setNewReq({...newReq, category: e.target.value})}
+                        value={newReq.siteId}
+                        onChange={(e) => setNewReq({...newReq, siteId: e.target.value})}
                         className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl p-4 text-sm font-bold dark:text-white outline-none appearance-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner"
                       >
-                         <option value="GENEL">Genel</option>
-                         <option value="FINANS">Finans</option>
-                         <option value="SAHA">Saha Varlıkları</option>
+                         <option value="site-a">İstanbul Kuzey</option>
+                         <option value="site-b">Ankara Batı</option>
+                         <option value="site-c">İzmir Liman</option>
                       </select>
                     </div>
                  </div>
+
+                 {budgetHealth && (
+                    <div className={`p-4 rounded-2xl border flex gap-4 animate-in slide-in-from-top-4 ${budgetHealth.isOver ? 'bg-rose-50 border-rose-100 dark:bg-rose-950/20' : 'bg-emerald-50 border-emerald-100 dark:bg-emerald-950/20'}`}>
+                        <Wallet size={20} className={budgetHealth.isOver ? 'text-rose-500' : 'text-emerald-500'} />
+                        <div className="flex-1">
+                            <p className={`text-[10px] font-black uppercase ${budgetHealth.isOver ? 'text-rose-600' : 'text-emerald-600'}`}>Bütçe Önizleme</p>
+                            <p className="text-[9px] font-bold text-slate-500 mt-0.5 uppercase">
+                                {budgetHealth.isOver 
+                                    ? `Dikkat: Bu talep bütçe limitini aşıyor. ${budgetHealth.budget?.overLimitRoleRequired} onayı eklenecektir.` 
+                                    : `Bütçe durumu uygun. Kalan: ₺${(budgetHealth.budget?.amount - budgetHealth.budget?.consumed).toLocaleString()}`}
+                            </p>
+                        </div>
+                    </div>
+                 )}
 
                  <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-800 flex gap-4">
                     <AlertCircle size={20} className="text-amber-500 shrink-0" />
                     <div>
                        <p className="text-[10px] font-black text-amber-600 uppercase">Onay Gereksinimi</p>
-                       <p className="text-[9px] font-medium text-amber-500 mt-0.5">₺10.000 üzerindeki talepler otomatik olarak "Yüksek Öncelikli" olarak işaretlenir ve Yönetici onayı gerektirir.</p>
+                       <p className="text-[9px] font-medium text-amber-500 mt-0.5 uppercase">Sistem kurumsal workflow tanımlarını otomatik uygular.</p>
                     </div>
                  </div>
               </div>
               <div className="p-8 bg-slate-50 dark:bg-slate-800/50 flex gap-4">
                  <button 
                   onClick={() => setIsModalOpen(false)}
-                  title="İşlemi kaydetmeden sonlandırır ve merkeze döner."
                   className="flex-1 py-4 text-xs font-black uppercase text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-all"
                  >
                    {t('cancel')}
                  </button>
                  <button 
                   onClick={handleCreate}
-                  title="Talebi kaydederek yetkili birimlerin onayına sunar."
                   className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase shadow-xl shadow-indigo-600/20 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
                  >
                    <ShieldCheck size={16} /> {t('submitForReview')}

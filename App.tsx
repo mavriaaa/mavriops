@@ -20,6 +20,8 @@ import ApprovalsInbox from './components/Approvals/ApprovalsInbox';
 import HRDashboard from './components/HR/HRDashboard';
 import ProfileModal from './components/Profile/ProfileModal';
 import ToastContainer from './components/Common/ToastContainer';
+import WorkflowStudio from './components/Admin/WorkflowStudio';
+import BudgetManager from './components/Finance/BudgetManager';
 
 export interface AppContextType {
   currentUser: User;
@@ -105,6 +107,8 @@ const App: React.FC = () => {
                 <Route path="/hr" element={<HRDashboard />} />
                 <Route path="/chat" element={<ChatView />} />
                 <Route path="/chat/:channelId" element={<ChatView />} />
+                <Route path="/admin/workflow" element={<WorkflowStudio />} />
+                <Route path="/finance/budgets" element={<BudgetManager />} />
                 <Route path="*" element={<Navigate to="/" />} />
               </Routes>
             </div>
