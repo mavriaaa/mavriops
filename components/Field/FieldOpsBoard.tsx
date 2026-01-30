@@ -27,8 +27,8 @@ import {
   HardHat,
   Construction,
   Navigation,
-  // Added missing Filter icon import
-  Filter
+  Filter,
+  ArrowRightCircle
 } from 'lucide-react';
 
 interface DispatchTask {
@@ -71,19 +71,19 @@ const FieldOpsBoard: React.FC = () => {
   });
 
   const [sites] = useState([
-    { id: 'SAHA-A', name: 'İstanbul Kuzey', progress: 68, workers: 42, status: 'Aktif' },
-    { id: 'SAHA-B', name: 'Ankara Batı Hub', progress: 42, workers: 28, status: 'Yavaş' },
-    { id: 'SAHA-C', name: 'İzmir Lojistik', progress: 95, workers: 15, status: 'Tamamlanmak Üzere' },
+    { id: 'SAHA-A', name: 'Kuzey Entegrasyonu', progress: 68, workers: 42, status: 'Aktif' },
+    { id: 'SAHA-B', name: 'Ankara Lojistik Hub', progress: 42, workers: 28, status: 'Stabil' },
+    { id: 'SAHA-C', name: 'İzmir Liman Kompleksi', progress: 95, workers: 15, status: 'Kapanış' },
   ]);
 
   if (!context) return null;
-  const { currentUser, addToast } = context;
+  const { currentUser, addToast, t } = context;
 
   useEffect(() => {
     const history = [
-      { id: '1', user: 'Barış Mühendis', text: 'Beton mikseri kapıda bekliyor, onay bekliyoruz.', time: '09:12', siteId: 'SAHA-A' },
-      { id: '2', user: 'Caner Şef', text: 'Onay verildi, döküme başlayabilirsiniz.', time: '09:15', siteId: 'SAHA-A' },
-      { id: '3', user: 'Mert Saha', text: 'Vibratör arızalandı, yedek lazım.', time: '10:02', siteId: 'SAHA-A' },
+      { id: '1', user: 'Barış Mühendis', text: 'Beton mikseri kapıda bekliyor, boşaltma onayı talep ediyoruz.', time: '09:12', siteId: 'SAHA-A' },
+      { id: '2', user: 'Deniz Müdür', text: 'Onay verildi, döküme başlayabilirsiniz. Uyum kurallarına dikkat edilsin.', time: '09:15', siteId: 'SAHA-A' },
+      { id: '3', user: 'Mert Saha', text: 'C Blok vibratör arızalandı, yedek ünite talebi oluşturuldu.', time: '10:02', siteId: 'SAHA-A' },
     ];
     setSiteMessages(history.filter(m => m.siteId === activeSiteId));
   }, [activeSiteId]);
@@ -123,8 +123,8 @@ const FieldOpsBoard: React.FC = () => {
     const targetTask = updated.find(t => t.id === taskId);
     if (targetTask) {
        setSelectedTask(targetTask);
-       handleSendMessage(`🔄 DURUM GÜNCELLEME: ${targetTask.task} [${newStatus}] durumuna geçti.`);
-       addToast('info', 'Durum Güncellendi', `${targetTask.id} nolu görev artık ${newStatus}.`);
+       handleSendMessage(`📻 SİSTEM ANONSU: ${targetTask.task} görevi [${newStatus}] durumuna güncellendi.`);
+       addToast('info', 'Görev Güncellendi', `${targetTask.id} referanslı saha görevi artık ${newStatus} safhasında.`);
     }
   };
 
@@ -162,20 +162,18 @@ const FieldOpsBoard: React.FC = () => {
             <RadioIcon size={28} className="animate-pulse" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight dark:text-white uppercase leading-none">
-              Saha Operasyonları
-            </h1>
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2 flex items-center gap-2">
-              <Target size={12} className="text-indigo-500" /> Aktif Saha: {(sites.find(s => s.id === activeSiteId) || sites[0]).name}
+            <h1 className="text-3xl font-black tracking-tight dark:text-white uppercase leading-none">{t('fieldOps')}</h1>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-2 flex items-center gap-2">
+              <Target size={12} className="text-indigo-500" /> Aktif Komuta Bölgesi: {(sites.find(s => s.id === activeSiteId) || sites[0]).name}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
            <button 
             onClick={() => setIsNewTaskModalOpen(true)}
-            className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-xl shadow-indigo-600/20 transition-all flex items-center gap-3 active:scale-95"
+            className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-indigo-600/20 transition-all flex items-center gap-3 active:scale-95"
            >
-             <Plus size={18} /> Yeni Görev Atama
+             <Plus size={18} /> Yeni Saha Sevkıyatı Başlat
            </button>
         </div>
       </div>
@@ -196,13 +194,13 @@ const FieldOpsBoard: React.FC = () => {
                <div className={`p-2.5 rounded-xl ${activeSiteId === site.id ? 'bg-indigo-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 group-hover:text-indigo-500'}`}>
                   <MapPin size={18} />
                </div>
-               <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded ${activeSiteId === site.id ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-50 dark:bg-slate-800 text-slate-400'}`}>
+               <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${activeSiteId === site.id ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-50 dark:bg-slate-800 text-slate-400'}`}>
                  {site.id}
                </span>
             </div>
-            <h3 className="font-bold text-base dark:text-white tracking-tight mb-1">{site.name}</h3>
+            <h3 className="font-black text-base dark:text-white tracking-tight mb-1">{site.name}</h3>
             <div className="flex items-center gap-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-               <Users size={10} /> {site.workers} Personel <span className="text-slate-200">|</span> <Activity size={10} /> {site.status}
+               <Users size={10} /> {site.workers} Saha Personeli <span className="text-slate-200">|</span> <Activity size={10} /> {site.status}
             </div>
           </button>
         ))}
@@ -214,12 +212,12 @@ const FieldOpsBoard: React.FC = () => {
         <div className="lg:col-span-7 flex flex-col gap-6 min-h-0 overflow-hidden">
            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 flex flex-col flex-1 overflow-hidden shadow-sm">
               <header className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/30 dark:bg-slate-800/20">
-                 <h2 className="text-sm font-bold dark:text-white flex items-center gap-2 uppercase tracking-tight">
-                   <Zap size={18} className="text-indigo-500" /> Operasyonel Akış
+                 <h2 className="text-sm font-black dark:text-white flex items-center gap-2 uppercase tracking-tight">
+                   <Zap size={18} className="text-indigo-500" /> Aktif Operasyonel Akış
                  </h2>
                  <div className="flex items-center gap-2">
-                    <button className="p-2 text-slate-400 hover:text-indigo-500 rounded-lg transition-colors"><Filter size={18} /></button>
-                    <button className="p-2 text-slate-400 hover:text-indigo-500 rounded-lg transition-colors"><Settings size={18} /></button>
+                    <button title="Filtrele" className="p-2 text-slate-400 hover:text-indigo-500 rounded-lg transition-colors"><Filter size={18} /></button>
+                    <button title="Konfigürasyon" className="p-2 text-slate-400 hover:text-indigo-500 rounded-lg transition-colors"><Settings size={18} /></button>
                  </div>
               </header>
               <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
@@ -229,9 +227,9 @@ const FieldOpsBoard: React.FC = () => {
                      <div 
                       key={job.id} 
                       onClick={() => handleTaskClick(job)}
-                      className={`w-full group p-5 rounded-2xl bg-white dark:bg-slate-900 border-2 text-left transition-all flex flex-col gap-3 cursor-pointer relative overflow-hidden ${
+                      className={`w-full group p-5 rounded-2xl bg-white dark:bg-slate-900 border-2 text-left transition-all flex flex-col gap-3 cursor-pointer relative overflow-hidden shadow-sm ${
                         selectedTask?.id === job.id 
-                          ? 'border-indigo-600 shadow-xl scale-[1.01]' 
+                          ? 'border-indigo-600 ring-4 ring-indigo-500/10 scale-[1.01]' 
                           : 'border-slate-50 dark:border-slate-800 hover:border-indigo-100'
                       }`}
                      >
@@ -241,21 +239,21 @@ const FieldOpsBoard: React.FC = () => {
                                 <ui.icon size={20} />
                              </div>
                              <div>
-                                <p className="font-bold text-sm dark:text-white uppercase tracking-tight">{job.task}</p>
+                                <p className="font-black text-sm dark:text-white uppercase tracking-tight">{job.task}</p>
                                 <div className="flex items-center gap-2 mt-0.5">
                                    <span className="text-[9px] font-bold text-indigo-500 uppercase tracking-tight bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded">{job.team}</span>
-                                   <span className={`text-[8px] font-bold uppercase px-2 py-0.5 rounded shadow-sm ${getPriorityBadge(job.priority)}`}>{job.priority}</span>
+                                   <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded shadow-sm ${getPriorityBadge(job.priority)}`}>{job.priority}</span>
                                 </div>
                              </div>
                           </div>
-                          <div className={`text-[9px] font-bold uppercase px-3 py-1 rounded-full border ${ui.bg} ${ui.color} ${ui.border}`}>
+                          <div className={`text-[9px] font-black uppercase px-3 py-1 rounded-full border ${ui.bg} ${ui.color} ${ui.border}`}>
                              {job.status}
                           </div>
                         </div>
 
                         <div className="mt-2">
-                           <div className="flex justify-between text-[9px] font-bold text-slate-400 uppercase mb-1.5">
-                              <span>Tamamlanma</span>
+                           <div className="flex justify-between text-[9px] font-black text-slate-400 uppercase mb-1.5 tracking-widest">
+                              <span>Hedeflenen Çıktı</span>
                               <span className={`${ui.color}`}>%{job.progress}</span>
                            </div>
                            <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden p-0.5 shadow-inner">
@@ -273,7 +271,7 @@ const FieldOpsBoard: React.FC = () => {
                               <Clock size={12} />
                               <span className="text-[9px] font-bold uppercase">{job.deadline}</span>
                            </div>
-                           <ChevronRight size={14} className="text-slate-300 group-hover:text-indigo-500 transition-all" />
+                           <ChevronRight size={14} className="text-slate-300 group-hover:text-indigo-600 transition-all group-hover:translate-x-0.5" />
                         </div>
                      </div>
                    );
@@ -281,7 +279,7 @@ const FieldOpsBoard: React.FC = () => {
                  {dispatches.filter(d => d.siteId === activeSiteId).length === 0 && (
                    <div className="py-20 text-center opacity-40">
                       <Construction size={48} className="mx-auto mb-4 text-slate-300" />
-                      <p className="text-[11px] font-bold uppercase tracking-widest">Bu sahada bekleyen görev bulunmuyor</p>
+                      <p className="text-[11px] font-black uppercase tracking-widest">Sistem Beklemede: Yeni bir saha görev ataması başlatılmadı.</p>
                    </div>
                  )}
               </div>
@@ -292,12 +290,12 @@ const FieldOpsBoard: React.FC = () => {
         <div className="lg:col-span-5 flex flex-col gap-6 min-h-0 overflow-hidden">
            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 flex flex-col flex-1 overflow-hidden shadow-sm">
               <header className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/30 dark:bg-slate-800/20">
-                 <h2 className="text-sm font-bold dark:text-white flex items-center gap-2 uppercase tracking-tight">
-                   <RadioIcon size={18} className="text-indigo-500" /> Saha Telsiz Kanalı
+                 <h2 className="text-sm font-black dark:text-white flex items-center gap-2 uppercase tracking-tight">
+                   <RadioIcon size={18} className="text-indigo-500" /> {t('siteChat')}
                  </h2>
                  <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Canlı Haberleşme</span>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">KRİPTO HABERLEŞME AKTİF</span>
                  </div>
               </header>
 
@@ -305,10 +303,10 @@ const FieldOpsBoard: React.FC = () => {
                  {siteMessages.map((m) => (
                    <div key={m.id} className={`flex flex-col ${m.user === currentUser.name ? 'items-end' : 'items-start'}`}>
                       <div className="flex items-center gap-2 mb-1.5 px-1">
-                         <span className="text-[9px] font-bold dark:text-white uppercase">{m.user}</span>
-                         <span className="text-[8px] text-slate-400 font-medium">{m.time}</span>
+                         <span className="text-[9px] font-black dark:text-white uppercase tracking-tight">{m.user}</span>
+                         <span className="text-[8px] text-slate-400 font-bold uppercase">{m.time}</span>
                       </div>
-                      <div className={`max-w-[85%] p-3.5 rounded-2xl text-[13px] font-medium leading-relaxed shadow-sm transition-all ${
+                      <div className={`max-w-[85%] p-3.5 rounded-2xl text-[13px] font-bold leading-relaxed shadow-sm transition-all ${
                         m.user === currentUser.name 
                          ? 'bg-indigo-600 text-white rounded-tr-none' 
                          : 'bg-slate-100 dark:bg-slate-800 dark:text-slate-200 rounded-tl-none border border-slate-200 dark:border-slate-700'
@@ -321,14 +319,14 @@ const FieldOpsBoard: React.FC = () => {
 
               <div className="p-5 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
                  <div className="relative flex items-center gap-2 bg-slate-50 dark:bg-slate-800 rounded-2xl p-1.5 border-2 border-transparent focus-within:border-indigo-500 transition-all shadow-inner">
-                    <button className="p-2 text-slate-400 hover:text-indigo-500 transition-colors"><ImageIcon size={20} /></button>
+                    <button title="Görsel Ekle" className="p-2 text-slate-400 hover:text-indigo-500 transition-colors"><ImageIcon size={20} /></button>
                     <input 
                        type="text" 
                        value={chatMessage}
                        onChange={(e) => setChatMessage(e.target.value)}
                        onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                       placeholder="Sahaya anons geç..."
-                       className="flex-1 bg-transparent border-none outline-none text-xs font-semibold dark:text-white px-1"
+                       placeholder="Sahaya anons geç veya talimat ilet..."
+                       className="flex-1 bg-transparent border-none outline-none text-xs font-bold dark:text-white px-1"
                     />
                     <button 
                        onClick={() => handleSendMessage()}
@@ -353,8 +351,8 @@ const FieldOpsBoard: React.FC = () => {
                        {React.createElement(getStatusUI(selectedTask.status).icon, { size: 28 })}
                     </div>
                     <div>
-                       <h2 className="text-xl font-bold dark:text-white tracking-tight uppercase leading-none">{selectedTask.task}</h2>
-                       <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">{selectedTask.id} • {selectedTask.siteId}</p>
+                       <h2 className="text-xl font-black dark:text-white tracking-tight uppercase leading-none">{selectedTask.task}</h2>
+                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-2">{selectedTask.id} • Kurumsal Operasyon Kaydı</p>
                     </div>
                  </div>
                  <button onClick={() => setIsDetailModalOpen(false)} className="p-3 bg-white dark:bg-slate-800 rounded-2xl text-slate-400 hover:text-rose-500 shadow-sm transition-all"><X size={20} /></button>
@@ -363,19 +361,19 @@ const FieldOpsBoard: React.FC = () => {
               {/* Modal Content */}
               <div className="flex-1 overflow-y-auto p-8 space-y-8 no-scrollbar">
                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                       <p className="text-[9px] font-bold text-slate-400 uppercase mb-2 flex items-center gap-2"><Users size={12} /> Sorumlu Ekip</p>
-                       <p className="text-xs font-bold dark:text-white uppercase tracking-tight">{selectedTask.team}</p>
+                    <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-inner">
+                       <p className="text-[9px] font-black text-slate-400 uppercase mb-2 flex items-center gap-2"><Users size={12} /> Görevli Ekip Birimi</p>
+                       <p className="text-xs font-black dark:text-white uppercase tracking-tight">{selectedTask.team}</p>
                     </div>
-                    <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                       <p className="text-[9px] font-bold text-slate-400 uppercase mb-2 flex items-center gap-2"><Timer size={12} /> Hedef Zaman</p>
-                       <p className="text-xs font-bold dark:text-white uppercase tracking-tight">{selectedTask.deadline}</p>
+                    <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-inner">
+                       <p className="text-[9px] font-black text-slate-400 uppercase mb-2 flex items-center gap-2"><Timer size={12} /> Hedeflenen SLA</p>
+                       <p className="text-xs font-black dark:text-white uppercase tracking-tight">{selectedTask.deadline}</p>
                     </div>
                  </div>
 
                  <div>
-                    <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">
-                       <span>İş İlerleme Durumu</span>
+                    <div className="flex justify-between text-[10px] font-black text-slate-500 uppercase mb-3 tracking-widest">
+                       <span>İş İlerleme Safhası</span>
                        <span className={`font-black ${getStatusUI(selectedTask.status).color}`}>%{selectedTask.progress}</span>
                     </div>
                     <div className="h-4 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden p-1 shadow-inner border border-slate-200 dark:border-slate-800">
@@ -386,7 +384,6 @@ const FieldOpsBoard: React.FC = () => {
                          }`} 
                        />
                     </div>
-                    {/* Progress Slider (Interactive) */}
                     {selectedTask.status !== 'TAMAMLANDI' && (
                       <input 
                         type="range" 
@@ -401,26 +398,13 @@ const FieldOpsBoard: React.FC = () => {
                  </div>
                  
                  <div className="space-y-3">
-                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><Info size={14} /> Görev Talimatı</h4>
-                    <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-l-4 border-indigo-500 italic">
-                       <p className="text-[13px] font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
-                         "{selectedTask.description || 'Bu görev için henüz detaylı bir talimat girilmemiş.'}"
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Info size={14} /> Resmi Görev Talimatı</h4>
+                    <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-l-4 border-indigo-500 italic shadow-inner">
+                       <p className="text-[13px] font-bold text-slate-600 dark:text-slate-300 leading-relaxed">
+                         "{selectedTask.description || 'Bu görev için resmi bir talimat girilmemiştir. Saha amirinin sözlü direktifleri esastır.'}"
                        </p>
                     </div>
                  </div>
-
-                 {selectedTask.assignedEquipment && (
-                   <div className="space-y-3">
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><HardHat size={14} /> Atanan Saha Ekipmanları</h4>
-                      <div className="flex flex-wrap gap-2">
-                         {selectedTask.assignedEquipment.map((eq, i) => (
-                           <span key={i} className="px-3 py-1.5 bg-white dark:bg-slate-800 text-indigo-500 text-[10px] font-bold uppercase rounded-xl border border-indigo-100 dark:border-indigo-800 shadow-sm">
-                             {eq}
-                           </span>
-                         ))}
-                      </div>
-                   </div>
-                 )}
               </div>
 
               {/* Modal Footer (Actions) */}
@@ -433,7 +417,7 @@ const FieldOpsBoard: React.FC = () => {
                         className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase transition-all ${
                           selectedTask.status === st 
                             ? 'bg-indigo-600 text-white shadow-xl scale-105 z-10' 
-                            : 'bg-white dark:bg-slate-900 text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-indigo-200'
+                            : 'bg-white dark:bg-slate-900 text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-indigo-200 shadow-sm'
                         }`}
                       >
                         {st}
@@ -443,16 +427,16 @@ const FieldOpsBoard: React.FC = () => {
                  <div className="flex gap-3">
                     <button 
                       onClick={() => {
-                        handleSendMessage(`🚨 ACİL ANONS: ${selectedTask.team} ekibi, ${selectedTask.id} nolu görev için hızlı rapor bekliyoruz!`);
-                        addToast('warning', 'Ekip Uyarıldı', 'Telsizden acil anons geçildi.');
+                        handleSendMessage(`🚨 ACİL DURUM ANONSU: ${selectedTask.team} ekibi, ${selectedTask.id} nolu sevkıyat için anlık rapor bekleniyor!`);
+                        addToast('warning', 'Ekip Uyarıldı', 'Telsiz kanalı üzerinden acil müdahale anonsu geçildi.');
                       }}
-                      className="flex-1 py-4 bg-rose-600 text-white text-[10px] font-bold uppercase tracking-widest rounded-xl shadow-lg shadow-rose-600/20 hover:bg-rose-700 transition-all flex items-center justify-center gap-2 active:scale-95"
+                      className="flex-1 py-4 bg-rose-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-rose-600/20 hover:bg-rose-700 transition-all flex items-center justify-center gap-2 active:scale-95"
                     >
-                       <BellRing size={16} /> Ekibi Telsizle Uyar
+                       <BellRing size={16} /> Ekibi Telsizle Eskale Et
                     </button>
                     <button 
                       onClick={() => setIsDetailModalOpen(false)}
-                      className="px-8 py-4 bg-white dark:bg-slate-900 text-slate-500 text-[10px] font-bold uppercase tracking-widest rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 transition-all"
+                      className="px-8 py-4 bg-white dark:bg-slate-900 text-slate-500 text-[10px] font-black uppercase tracking-widest rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 transition-all"
                     >
                       Kapat
                     </button>
@@ -462,74 +446,78 @@ const FieldOpsBoard: React.FC = () => {
         </div>
       )}
 
-      {/* New Task Modal (Simplified for brevity) */}
+      {/* New Task Modal */}
       {isNewTaskModalOpen && (
         <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 animate-in fade-in duration-300">
            <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
               <div className="p-8 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex justify-between items-center">
-                 <h2 className="text-xl font-bold dark:text-white tracking-tight uppercase">Yeni Saha Sevkıyatı</h2>
+                 <h2 className="text-xl font-black dark:text-white tracking-tight uppercase">Yeni Saha Sevkıyatı Tanımla</h2>
                  <button onClick={() => setIsNewTaskModalOpen(false)} className="p-2 text-slate-400 hover:text-rose-500"><X size={20} /></button>
               </div>
               <div className="p-8 space-y-6">
                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase text-slate-400 tracking-widest ml-1">Görev Tanımı</label>
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Görev Tanımı ve Amacı</label>
                     <input 
                       type="text" 
                       value={newTask.task}
                       onChange={(e) => setNewTask({...newTask, task: e.target.value})}
-                      placeholder="Örn: Kat 4 Kolon Donatı Kontrolü"
+                      placeholder="Örn: Kat 4 Kolon Donatı Denetimi ve Kabulü"
                       className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500 rounded-2xl p-4 text-sm font-bold dark:text-white outline-none transition-all shadow-inner" 
                     />
                  </div>
                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase text-slate-400 tracking-widest ml-1">Ekip</label>
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Sorumlu Ekip</label>
                       <input 
                         type="text" 
                         value={newTask.team}
                         onChange={(e) => setNewTask({...newTask, team: e.target.value})}
-                        placeholder="Örn: Denetim Ekibi"
+                        placeholder="Örn: Statik Denetim Takımı"
                         className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500 rounded-2xl p-4 text-sm font-bold dark:text-white outline-none" 
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase text-slate-400 tracking-widest ml-1">Öncelik</label>
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Stratejik Seviye</label>
                       <select 
                         value={newTask.priority}
                         onChange={(e) => setNewTask({...newTask, priority: e.target.value as any})}
                         className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500 rounded-2xl p-4 text-sm font-bold dark:text-white outline-none appearance-none"
                       >
-                         <option value="DÜŞÜK">Düşük</option>
-                         <option value="ORTA">Orta</option>
-                         <option value="YÜKSEK">Yüksek</option>
-                         <option value="KRİTİK">Kritik</option>
+                         <option value="DÜŞÜK">DÜŞÜK</option>
+                         <option value="ORTA">ORTA</option>
+                         <option value="YÜKSEK">YÜKSEK</option>
+                         <option value="KRİTİK">KRİTİK</option>
                       </select>
                     </div>
                  </div>
               </div>
               <div className="p-8 bg-slate-50 dark:bg-slate-800/30 flex gap-4">
-                 <button onClick={() => setIsNewTaskModalOpen(false)} className="flex-1 py-4 text-xs font-bold uppercase text-slate-500">İptal</button>
+                 <button onClick={() => setIsNewTaskModalOpen(false)} className="flex-1 py-4 text-xs font-black uppercase text-slate-500">İptal</button>
                  <button 
                   onClick={() => {
-                    if(!newTask.task || !newTask.team) return;
+                    if(!newTask.task || !newTask.team) {
+                        addToast('warning', 'Validasyon Hatası', 'Görev tanımı ve ekip bilgisi zorunludur.');
+                        return;
+                    }
                     const item: DispatchTask = {
                       id: `DP-${Math.floor(100 + Math.random() * 900)}`,
                       task: newTask.task,
                       team: newTask.team,
                       priority: newTask.priority || 'ORTA',
                       status: 'BEKLEMEDE',
-                      deadline: 'Hemen',
+                      deadline: 'Derhal',
                       siteId: activeSiteId,
                       progress: 0
                     };
                     setDispatches([item, ...dispatches]);
                     setIsNewTaskModalOpen(false);
                     setNewTask({ task: '', team: '', priority: 'ORTA' });
-                    addToast('success', 'Sevkıyat Oluşturuldu', `${item.team} sahaya yönlendirildi.`);
+                    addToast('success', 'Sevkıyat Aktif', `${item.team} sahaya operasyon için yönlendirildi.`);
+                    handleSendMessage(`🚨 YENİ GÖREV: ${item.task} görevi için ${item.team} birimi sahaya sevk edildi.`);
                   }}
-                  className="flex-2 py-4 bg-indigo-600 text-white rounded-2xl text-xs font-bold uppercase shadow-lg shadow-indigo-600/20 active:scale-95 transition-all"
+                  className="flex-2 py-4 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase shadow-lg shadow-indigo-600/20 active:scale-95 transition-all"
                  >
-                   Atamayı Başlat
+                   Atamayı Kesinleştir
                  </button>
               </div>
            </div>

@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { MOCK_USERS } from './constants';
-import { User, ToastMessage, UserPreferences } from './types';
+import { User, ToastMessage, UserPreferences, MetricSummary, Project } from './types';
 import { translations, Language } from './i18n';
 import { ApiService } from './services/api';
 
@@ -22,6 +22,8 @@ import ProfileModal from './components/Profile/ProfileModal';
 import ToastContainer from './components/Common/ToastContainer';
 import WorkflowStudio from './components/Admin/WorkflowStudio';
 import BudgetManager from './components/Finance/BudgetManager';
+import ProjectSiteCenter from './components/Projects/ProjectSiteCenter';
+import ProjectHeader from './components/Layout/ProjectHeader';
 
 export interface AppContextType {
   currentUser: User;
@@ -36,22 +38,40 @@ export interface AppContextType {
   addToast: (type: ToastMessage['type'], title: string, message: string) => void;
   preferences: UserPreferences;
   updatePreferences: (p: Partial<UserPreferences>) => void;
+  metrics: MetricSummary | null;
+  refreshMetrics: () => void;
+  activeProjectId: string;
+  setActiveProjectId: (id: string) => void;
+  projects: Project[];
 }
 
 export const AppContext = React.createContext<AppContextType | null>(null);
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User>(MOCK_USERS[0]);
-  const [isDarkMode, setIsDarkMode] = useState(true);
-  const [language, setLanguage] = useState<Language>('tr');
+  const [metrics, setMetrics] = useState<MetricSummary | null>(null);
+  const [prefs, setPrefs] = useState<UserPreferences>(ApiService.getPreferences());
   const [isProfileOpen, setProfileOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const [prefs, setPrefs] = useState<UserPreferences>(ApiService.getPreferences());
+  const [activeProjectId, setActiveProjectId] = useState<string>('prj-1'); // Default to first project
+  const [projects, setProjects] = useState<Project[]>([]);
+
+  const refreshMetrics = useCallback(async () => {
+    const summary = await ApiService.getMetricSummary(activeProjectId);
+    setMetrics(summary);
+  }, [activeProjectId]);
 
   useEffect(() => {
-    // Sync UI with preferences
-    setIsDarkMode(prefs.theme === 'dark');
-    setLanguage(prefs.language);
+    ApiService.fetchProjects().then(setProjects);
+  }, []);
+
+  useEffect(() => {
+    refreshMetrics();
+    const interval = setInterval(refreshMetrics, 30000);
+    return () => clearInterval(interval);
+  }, [refreshMetrics]);
+
+  useEffect(() => {
     if (prefs.theme === 'dark') document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
   }, [prefs]);
@@ -70,23 +90,28 @@ const App: React.FC = () => {
   };
 
   const t = (key: keyof typeof translations['en']): string => {
-    return (translations[language] as any)[key] || (translations['en'] as any)[key] || key;
+    return (translations[prefs.language as Language] as any)[key] || (translations['en'] as any)[key] || key;
   };
 
   const contextValue = useMemo(() => ({
     currentUser,
     updateCurrentUser: (u: any) => setCurrentUser(prev => ({ ...prev, ...u })),
-    isDarkMode,
+    isDarkMode: prefs.theme === 'dark',
     setDarkMode: (val: boolean) => updatePreferences({ theme: val ? 'dark' : 'light' }),
-    language,
+    language: prefs.language as Language,
     setLanguage: (lang: Language) => updatePreferences({ language: lang }),
     t,
     isProfileOpen,
     setProfileOpen,
     addToast,
     preferences: prefs,
-    updatePreferences
-  }), [currentUser, isDarkMode, language, isProfileOpen, prefs]);
+    updatePreferences,
+    metrics,
+    refreshMetrics,
+    activeProjectId,
+    setActiveProjectId,
+    projects
+  }), [currentUser, prefs, isProfileOpen, metrics, refreshMetrics, activeProjectId, projects]);
 
   return (
     <AppContext.Provider value={contextValue}>
@@ -94,9 +119,11 @@ const App: React.FC = () => {
         <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950 transition-all duration-300">
           <Sidebar />
           <main className="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 relative overflow-hidden">
+            <ProjectHeader />
             <div className="flex-1 overflow-y-auto no-scrollbar">
               <Routes>
                 <Route path="/" element={<Dashboard />} />
+                <Route path="/projects" element={<ProjectSiteCenter />} />
                 <Route path="/work-items" element={<WorkItemCenter />} />
                 <Route path="/approvals" element={<ApprovalsInbox />} />
                 <Route path="/requests" element={<RequestCenter />} />

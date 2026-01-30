@@ -1,185 +1,293 @@
 
-import React, { useContext, useState, useEffect } from 'react';
+import React, { useContext, useState, useEffect, useMemo } from 'react';
 import { AppContext } from '../../App';
 import { 
   Wallet, 
   ArrowUpRight, 
+  ArrowDownLeft,
   CreditCard, 
   History, 
   PieChart, 
-  FileText,
   Download,
-  CheckCircle2,
   Clock,
-  AlertCircle,
   TrendingUp,
   Receipt,
   Banknote,
-  Search,
+  Plus,
   X,
-  Users
+  Building,
+  Calendar,
+  DollarSign,
+  ShieldCheck,
+  Search,
+  FileText,
+  FileSpreadsheet,
+  Briefcase
 } from 'lucide-react';
 import { ApiService } from '../../services/api';
-import { WorkItem, WorkItemStatus, WorkItemType } from '../../types';
-
-interface Transaction {
-  id: string;
-  vendor: string;
-  category: string;
-  amount: number;
-  status: 'PAID' | 'PENDING' | 'REJECTED';
-  date: string;
-}
+import { WorkItem, WorkItemStatus, WorkItemType, User, FinancialTransaction, Project, Site } from '../../types';
+import EmptyState from '../Common/EmptyState';
 
 const AccountingDashboard: React.FC = () => {
   const context = useContext(AppContext);
   const [approvedRequests, setApprovedRequests] = useState<WorkItem[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([
-    { id: 'TX-5001', vendor: 'BetonSA A.Ş.', category: 'Malzeme', amount: 125000, status: 'PAID', date: '2024-05-18' },
-    { id: 'TX-5002', vendor: 'Petrol Ofisi', category: 'Akaryakıt', amount: 42300, status: 'PENDING', date: '2024-05-19' },
-    { id: 'TX-5003', vendor: 'Saha Personel Avansı', category: 'Personel', amount: 15000, status: 'PAID', date: '2024-05-19' },
-    { id: 'TX-5004', vendor: 'Elektrik Dağıtım', category: 'Genel Gider', amount: 8400, status: 'REJECTED', date: '2024-05-17' },
-  ]);
-  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [ledger, setLedger] = useState<FinancialTransaction[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [allSites, setAllSites] = useState<Site[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'QUEUE' | 'LEDGER'>('QUEUE');
+  
+  const [newTx, setNewTx] = useState<Partial<FinancialTransaction>>({
+    type: 'EXPENSE',
+    title: '',
+    amount: 0,
+    category: 'GENEL',
+    siteId: '',
+    date: new Date().toISOString().split('T')[0]
+  });
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [context?.activeProjectId]);
 
   const loadData = async () => {
+    if (!context?.activeProjectId) return;
     const all = await ApiService.fetchWorkItems();
-    setApprovedRequests(all.filter(i => i.type === WorkItemType.REQUEST && i.status === WorkItemStatus.APPROVED));
+    const ledgerData = await ApiService.fetchFinancialTransactions();
+    const prjs = await ApiService.fetchProjects();
+    const sts = await ApiService.fetchSites(context.activeProjectId);
+    
+    // Filter queue and ledger by active project
+    setApprovedRequests(all.filter(i => 
+      i.projectId === context.activeProjectId && 
+      i.type === WorkItemType.REQUEST && 
+      i.status === WorkItemStatus.APPROVED
+    ));
+    
+    setLedger(ledgerData.filter(t => t.projectId === context.activeProjectId));
+    setProjects(prjs);
+    setAllSites(sts);
   };
 
   if (!context) return null;
-  const { addToast } = context;
+  const { addToast, currentUser, metrics, refreshMetrics, t, activeProjectId } = context;
 
   const handleMarkAsPaid = async (req: WorkItem) => {
-    if (!confirm(`${req.title} için ödeme emri onaylanacak. Emin misiniz?`)) return;
-    
-    const newTx: Transaction = {
-      id: `TX-${Math.floor(6000 + Math.random() * 1000)}`,
-      vendor: req.title,
-      category: req.requestData?.category || 'Genel',
+    const tx: Partial<FinancialTransaction> = {
+      type: 'EXPENSE',
+      title: `${req.id} - ${req.title}`,
       amount: req.requestData?.amount || 0,
-      status: 'PAID',
-      date: new Date().toISOString().split('T')[0]
+      category: req.requestData?.category || 'Saha Gideri',
+      projectId: activeProjectId,
+      siteId: req.siteId,
+      vendor: req.requestData?.vendor || 'Resmi Kurum/Tedarikçi'
     };
     
-    setTransactions([newTx, ...transactions]);
-    await ApiService.updateWorkItem(req.id, { status: WorkItemStatus.DONE }, 'accounting-system');
-    addToast('success', 'Ödeme Tamamlandı', `${req.id} referanslı ödeme hazine kayıtlarına işlendi.`);
+    await ApiService.createFinancialTransaction(tx, currentUser);
+    await ApiService.updateWorkItem(req.id, { status: WorkItemStatus.DONE }, currentUser);
+    
+    addToast('success', 'Hazine Onaylandı', `Ödeme emri ${projects.find(p=>p.id===activeProjectId)?.projectCode} bütçesinden düşüldü.`);
+    loadData();
+    refreshMetrics();
+  };
+
+  const handleCreateManualTx = async () => {
+    if (!newTx.title || !newTx.siteId) {
+      addToast('warning', 'Eksik Bağlam', 'Lütfen maliyet merkezini seçiniz.');
+      return;
+    }
+    await ApiService.createFinancialTransaction({
+      ...newTx,
+      projectId: activeProjectId
+    }, currentUser);
+    addToast('success', 'Kayıt Arşivlendi', 'Hazine kaydı ilgili proje maliyetine işlendi.');
+    setIsModalOpen(false);
     loadData();
   };
 
-  const totalPaid = transactions.filter(t => t.status === 'PAID').reduce((sum, t) => sum + t.amount, 0);
-  const totalPending = transactions.filter(t => t.status === 'PENDING').reduce((sum, t) => sum + t.amount, 0) + 
-                       approvedRequests.reduce((sum, r) => sum + (r.requestData?.amount || 0), 0);
+  const activeProject = projects.find(p => p.id === activeProjectId);
+  const availableSites = allSites; // Already filtered in loadData
 
   return (
-    <div className="p-10 space-y-10 animate-in fade-in duration-700 bg-slate-50 dark:bg-slate-950 min-h-full">
-      <div className="flex items-center justify-between">
+    <div className="p-10 space-y-10 animate-in fade-in duration-700 bg-slate-50 dark:bg-slate-950 min-h-full overflow-y-auto no-scrollbar pb-32">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-6">
           <div className="w-16 h-16 rounded-[2rem] bg-rose-600 flex items-center justify-center text-white shadow-xl shadow-rose-600/20">
             <Banknote size={32} />
           </div>
           <div>
-            <h1 className="text-3xl font-black tracking-tighter dark:text-white uppercase">Muhasebe Paneli</h1>
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Mali Kontrol Merkezi</p>
+            <h1 className="text-3xl font-black tracking-tighter dark:text-white uppercase leading-none">
+              {activeProject?.name} Hazine
+            </h1>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-2 flex items-center gap-2">
+               <ShieldCheck size={12} className="text-rose-500" /> Kurumsal Proje Finansmanı ve Hazine
+            </p>
           </div>
         </div>
-        <div className="flex gap-4">
-           <button onClick={() => alert('CSV Raporu Hazırlanıyor...')} className="px-6 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 transition-colors flex items-center gap-2 shadow-sm">
-             <Download size={16} /> Excel Aktar
-           </button>
-           <button className="px-8 py-4 bg-rose-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl shadow-rose-600/30 hover:bg-rose-700 transition-all active:scale-95 flex items-center gap-2">
-             <Receipt size={18} /> Manuel Kayıt
-           </button>
-        </div>
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="px-8 py-4 bg-rose-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl shadow-rose-600/30 hover:bg-rose-700 transition-all active:scale-95 flex items-center gap-2"
+        >
+          <Receipt size={18} /> Manuel İşlem Girişi
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <MetricCard title="Toplam Ödeme" value={`₺${totalPaid.toLocaleString()}`} icon={TrendingUp} color="text-rose-500" sub="Bu Ay" />
-        <MetricCard title="Bekleyen" value={`₺${totalPending.toLocaleString()}`} icon={Clock} color="text-amber-500" sub="Hazine Kuyruğu" />
-        <MetricCard title="Likidite" value="₺4.85M" icon={Wallet} color="text-emerald-500" sub="Operasyonel" />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <MetricCard title={t('totalExpenses')} value={`₺${metrics?.financials.approvedExpenses.toLocaleString()}`} icon={ArrowUpRight} color="text-rose-500" sub="Cari Dönem" />
+        <MetricCard title="Tahsilat" value={`₺${metrics?.financials.totalIncome.toLocaleString()}`} icon={ArrowDownLeft} color="text-emerald-500" sub="Gelir Kalemleri" />
+        <MetricCard title={t('awaitingPayment')} value={`₺${metrics?.financials.pendingExpenses.toLocaleString()}`} icon={Clock} color="text-amber-500" sub="Hazine Kuyruğu" />
+        <MetricCard title={t('operationalCash')} value={`₺${((metrics?.financials.totalIncome || 0) - (metrics?.financials.approvedExpenses || 0)).toLocaleString()}`} icon={Wallet} color="text-indigo-500" sub="Mevcut Likidite" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-        <div className="lg:col-span-8 space-y-8">
-           <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-              <div className="p-8 border-b border-slate-100 dark:border-slate-800 bg-amber-50/30 dark:bg-amber-900/10 flex justify-between items-center">
-                 <h2 className="text-xl font-black dark:text-white uppercase flex items-center gap-3">
-                   <Clock className="text-amber-500" /> Ödeme Kuyruğu
-                 </h2>
+      <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+           <div className="flex items-center gap-2 p-6 bg-slate-50/50 dark:bg-slate-800/20 border-b border-slate-100 dark:border-slate-800">
+              <button onClick={() => setActiveTab('QUEUE')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeTab === 'QUEUE' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Ödeme Kuyruğu</button>
+              <button onClick={() => setActiveTab('LEDGER')} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeTab === 'LEDGER' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Hazine Defteri</button>
+           </div>
+           
+           <table className="w-full text-left border-collapse">
+              <thead>
+                 <tr className="bg-white dark:bg-slate-900 text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
+                    <th className="px-8 py-5">Saha Bağlamı</th>
+                    <th className="px-8 py-5">İşlem & Paydaş</th>
+                    <th className="px-8 py-5 text-right">Mali Değer</th>
+                    <th className="px-8 py-5 text-right">Aksiyon/Tarih</th>
+                 </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                 {activeTab === 'QUEUE' ? (
+                   approvedRequests.length > 0 ? approvedRequests.map(req => (
+                    <tr key={req.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                       <td className="px-8 py-6">
+                          <span className="px-2 py-1 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 rounded text-[9px] font-black uppercase">{req.siteId}</span>
+                       </td>
+                       <td className="px-8 py-6">
+                          <p className="text-sm font-black dark:text-white uppercase truncate">{req.title}</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">{req.id}</p>
+                       </td>
+                       <td className="px-8 py-6 text-right">
+                          <p className="text-lg font-black dark:text-white">₺{req.requestData?.amount.toLocaleString()}</p>
+                       </td>
+                       <td className="px-8 py-6 text-right">
+                          <button onClick={() => handleMarkAsPaid(req)} className="px-4 py-2 bg-emerald-600 text-white text-[9px] font-black uppercase rounded-lg shadow-lg">Ödemeyi Kesinleştir</button>
+                       </td>
+                    </tr>
+                 )) : (
+                   <tr>
+                      <td colSpan={4} className="py-20 text-center opacity-30">
+                        <EmptyState title="Kuyruk Temiz" description="Bu proje için bekleyen ödeme emri bulunmuyor." />
+                      </td>
+                   </tr>
+                 )
+                ) : (
+                   ledger.length > 0 ? ledger.map(tx => (
+                    <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                       <td className="px-8 py-6">
+                          <span className="px-2 py-1 bg-rose-50 dark:bg-rose-900/40 text-rose-600 rounded text-[9px] font-black uppercase">{tx.siteId}</span>
+                       </td>
+                       <td className="px-8 py-6">
+                          <p className="text-sm font-black dark:text-white uppercase">{tx.title}</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">{tx.vendor || 'Resmi İşlem'}</p>
+                       </td>
+                       <td className="px-8 py-6 text-right">
+                          <p className={`text-lg font-black ${tx.type === 'INCOME' ? 'text-emerald-500' : 'text-rose-500'}`}>{tx.type === 'INCOME' ? '+' : '-'}₺{tx.amount.toLocaleString()}</p>
+                       </td>
+                       <td className="px-8 py-6 text-right text-[10px] font-bold text-slate-400 uppercase">{tx.date}</td>
+                    </tr>
+                 )) : (
+                  <tr>
+                    <td colSpan={4} className="py-20 text-center opacity-30">
+                      <EmptyState title="Kayıt Yok" description="Bu proje defterinde henüz finansal işlem bulunmuyor." />
+                    </td>
+                  </tr>
+                 )
+                )}
+              </tbody>
+           </table>
+      </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4 animate-in fade-in">
+           <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[3rem] border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95">
+              <div className="p-10 border-b border-slate-100 dark:border-slate-800 bg-rose-50/30 dark:bg-rose-900/10 flex justify-between items-center">
+                 <div>
+                    <h2 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Hazine Kaydı</h2>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{activeProject?.projectCode} Manuel Veri Girişi</p>
+                 </div>
+                 <X size={24} className="text-slate-400 cursor-pointer" onClick={() => setIsModalOpen(false)} />
               </div>
-              <div className="p-2">
-                 <table className="w-full text-left border-collapse">
-                    <thead>
-                       <tr className="text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
-                          <th className="px-6 py-4">Talep</th>
-                          <th className="px-6 py-4 text-right">Tutar</th>
-                          <th className="px-6 py-4 text-right">İşlem</th>
-                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                       {approvedRequests.map(req => (
-                         <tr key={req.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                            <td className="px-6 py-5">
-                               <p className="text-xs font-black dark:text-white uppercase tracking-tight">{req.title}</p>
-                               <p className="text-[9px] font-bold text-slate-400">{req.id} • {req.siteId}</p>
-                            </td>
-                            <td className="px-6 py-5 text-right">
-                               <p className="text-sm font-black dark:text-white">₺{req.requestData?.amount.toLocaleString()}</p>
-                            </td>
-                            <td className="px-6 py-5 text-right">
-                               <button onClick={() => handleMarkAsPaid(req)} className="px-4 py-2 bg-emerald-600 text-white text-[9px] font-black uppercase rounded-xl shadow-lg hover:bg-emerald-700 transition-all">Öde</button>
-                            </td>
-                         </tr>
-                       ))}
-                       {approvedRequests.length === 0 && (
-                         <tr><td colSpan={3} className="py-12 text-center opacity-30 text-[10px] font-black uppercase tracking-widest">Bekleyen ödeme yok</td></tr>
-                       )}
-                    </tbody>
-                 </table>
+              
+              <div className="p-10 space-y-6">
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Maliyet Merkezi</label>
+                    <select 
+                      value={newTx.siteId}
+                      onChange={(e) => setNewTx({...newTx, siteId: e.target.value})}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-rose-500 rounded-2xl p-4 text-sm font-bold dark:text-white outline-none appearance-none shadow-inner"
+                    >
+                      <option value="">Seçiniz...</option>
+                      <option value="GENEL">Genel Merkez (Bu Proje)</option>
+                      {availableSites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                 </div>
+
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">İşlem Başlığı</label>
+                    <input 
+                      type="text" 
+                      value={newTx.title}
+                      onChange={(e) => setNewTx({...newTx, title: e.target.value})}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-rose-500 rounded-2xl p-4 text-sm font-bold dark:text-white outline-none shadow-inner" 
+                    />
+                 </div>
+
+                 <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Tutar (TRY)</label>
+                      <input 
+                        type="number" 
+                        value={newTx.amount}
+                        onChange={(e) => setNewTx({...newTx, amount: Number(e.target.value)})}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-rose-500 rounded-2xl p-4 text-sm font-bold dark:text-white outline-none shadow-inner" 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Tür</label>
+                      <select 
+                        value={newTx.type}
+                        onChange={(e) => setNewTx({...newTx, type: e.target.value as any})}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-rose-500 rounded-2xl p-4 text-sm font-bold dark:text-white outline-none appearance-none shadow-inner"
+                      >
+                         <option value="EXPENSE">Gider (Expense)</option>
+                         <option value="INCOME">Gelir (Income)</option>
+                      </select>
+                    </div>
+                 </div>
+              </div>
+
+              <div className="p-10 bg-slate-50 dark:bg-slate-800/30 flex gap-4">
+                 <button onClick={() => setIsModalOpen(false)} className="flex-1 py-5 text-[10px] font-black uppercase text-slate-500 hover:bg-slate-200 rounded-2xl transition-all">Vazgeç</button>
+                 <button 
+                  onClick={handleCreateManualTx}
+                  className="flex-2 px-10 py-5 bg-rose-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-2xl shadow-rose-600/30 hover:bg-rose-700 transition-all flex items-center justify-center gap-3 active:scale-95"
+                 >
+                   <Receipt size={20} /> 
+                   {activeProject ? `[${activeProject.projectCode}] Defterine İşle` : 'Deftere İşle'}
+                 </button>
               </div>
            </div>
         </div>
-
-        <div className="lg:col-span-4 space-y-8">
-           <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-200 dark:border-slate-800 p-8 shadow-sm">
-              <h2 className="text-lg font-black dark:text-white mb-8 uppercase flex items-center gap-3">
-                 <PieChart className="text-indigo-500" /> Bütçe Dağılımı
-              </h2>
-              <div className="space-y-6">
-                 <BudgetProgress label="Saha Malzeme" used={72} color="bg-emerald-500" />
-                 <BudgetProgress label="Lojistik" used={45} color="bg-amber-500" />
-                 <BudgetProgress label="İdari" used={30} color="bg-indigo-500" />
-              </div>
-           </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 };
 
 const MetricCard = ({ title, value, icon: Icon, color, sub }: any) => (
-  <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-200 dark:border-slate-800 relative overflow-hidden group shadow-sm">
+  <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-200 dark:border-slate-800 relative overflow-hidden group shadow-sm hover:shadow-xl transition-all">
     <div className={`absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform ${color}`}><Icon size={80} /></div>
     <p className={`text-[10px] font-black uppercase tracking-widest mb-4 ${color}`}>{title}</p>
     <h3 className="text-4xl font-black dark:text-white tracking-tighter">{value}</h3>
     <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase">{sub}</p>
-  </div>
-);
-
-const BudgetProgress = ({ label, used, color }: any) => (
-  <div className="space-y-2">
-    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-      <span className="text-slate-500">{label}</span>
-      <span className="dark:text-white">%{used}</span>
-    </div>
-    <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-      <div style={{ width: `${used}%` }} className={`h-full ${color} transition-all duration-1000`} />
-    </div>
   </div>
 );
 

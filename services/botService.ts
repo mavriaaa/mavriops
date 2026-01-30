@@ -4,20 +4,21 @@ import { ApiService } from "./api";
 import { Message, User, WorkItem, BotContent } from "../types";
 import { BudgetService } from "./budgetService";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export class BotService {
   private static BOT_USER_ID = 'u-bot';
 
   static async processMention(message: Message, currentUser: User): Promise<void> {
     if (!message.content.toLowerCase().includes('@mavribot')) return;
 
+    // Correctly initialize GoogleGenAI inside the method to use the latest API key.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
     const processingMsg: Message = {
       id: `bot-${Date.now()}`,
       channelId: message.channelId,
       parentId: message.parentId,
       senderId: this.BOT_USER_ID,
-      content: '⌛ MavriOps AI motoru verileri çapraz analiz ediyor, lütfen bekleyin...',
+      content: '⌛ MavriOps Kurumsal Zeka Motoru analiz yapıyor...',
       timestamp: new Date().toISOString(),
       reactions: [],
       isBotMessage: true
@@ -26,14 +27,13 @@ export class BotService {
     await ApiService.sendMessage(processingMsg);
 
     try {
-      // Fix: Used fetchMessages instead of non-existent fetchChannelHistory and applied slicing for history
       const messages = await ApiService.fetchMessages(message.channelId || 'c1');
-      const history = messages.slice(-25);
+      const history = messages.slice(-15);
+      const metrics = await ApiService.getMetricSummary();
       const allWorkItems = await ApiService.fetchWorkItems();
-      const budgets = BudgetService.getBudgets();
       
       const command = message.content.replace(/@mavribot/gi, '').trim();
-      const prompt = this.buildEnhancedPrompt(command, history, allWorkItems, budgets, currentUser);
+      const prompt = this.buildEvidencePrompt(command, history, metrics, allWorkItems, currentUser);
 
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -41,87 +41,79 @@ export class BotService {
         config: {
           responseMimeType: "application/json",
           responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              summary: {
-                type: Type.OBJECT,
-                properties: {
-                  overall: { type: Type.STRING },
-                  criticalRisk: { type: Type.STRING },
-                  pendingApprovals: { type: Type.STRING },
-                  overdueTasks: { type: Type.STRING },
-                  nextStep: { type: Type.STRING }
-                },
-                required: ["overall", "criticalRisk", "pendingApprovals", "overdueTasks", "nextStep"]
-              },
-              workItems: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    id: { type: Type.STRING },
-                    title: { type: Type.STRING },
-                    status: { type: Type.STRING },
-                    source: { type: Type.STRING }
-                  },
-                  required: ["id", "title", "status", "source"]
-                }
-              },
-              actions: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    task: { type: Type.STRING },
-                    assignee: { type: Type.STRING },
-                    source: { type: Type.STRING }
-                  },
-                  required: ["task", "source"]
-                }
-              },
-              missingInfo: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING }
-              }
-            },
-            required: ["summary", "workItems", "actions"]
+             type: Type.OBJECT,
+             properties: {
+               summary: {
+                 type: Type.OBJECT,
+                 properties: {
+                   overall: { type: Type.STRING },
+                   criticalRisk: { type: Type.STRING },
+                   pendingApprovals: { type: Type.STRING },
+                   overdueTasks: { type: Type.STRING },
+                   nextStep: { type: Type.STRING }
+                 }
+               },
+               workItems: {
+                 type: Type.ARRAY,
+                 items: {
+                   type: Type.OBJECT,
+                   properties: {
+                     id: { type: Type.STRING },
+                     title: { type: Type.STRING },
+                     status: { type: Type.STRING },
+                     source: { type: Type.STRING }
+                   }
+                 }
+               },
+               actions: {
+                 type: Type.ARRAY,
+                 items: {
+                   type: Type.OBJECT,
+                   properties: {
+                     task: { type: Type.STRING },
+                     assignee: { type: Type.STRING },
+                     source: { type: Type.STRING }
+                   }
+                 }
+               },
+               missingInfo: { type: Type.ARRAY, items: { type: Type.STRING } }
+             },
+             required: ["summary", "workItems", "actions"]
           }
         }
       });
 
-      const botResponseData: BotContent = JSON.parse(response.text || '{}');
+      // Corrected extraction of text output from GenerateContentResponse. Use .text property.
+      const botData: BotContent = JSON.parse(response.text || '{}');
 
       await ApiService.updateMessage(processingMsg.id, {
-        content: `🤖 **MavriOps AI Analiz Raporu** (@${currentUser.name} için):`,
-        botData: botResponseData
+        content: `🤖 **Sistem Veri Özeti** (@${currentUser.name} için):`,
+        botData: botData
       });
 
     } catch (error) {
       console.error("Bot Error:", error);
       await ApiService.updateMessage(processingMsg.id, {
-        content: '❌ Veri analizi sırasında bir hata oluştu. Lütfen komutunuzu daha net belirtin veya sistem yöneticisine başvurun.'
+        content: '❌ Mevcut sistem verilerine ulaşılamadı. Lütfen teknik birimi bilgilendirin.'
       });
     }
   }
 
-  private static buildEnhancedPrompt(command: string, history: Message[], workItems: WorkItem[], budgets: any[], user: User): string {
+  private static buildEvidencePrompt(command: string, history: Message[], metrics: any, workItems: WorkItem[], user: User): string {
     return `
-      ROLÜN: MavriOps Kurumsal İş Zekası Botu. 
-      HEDEF: Kullanıcının sorusunu sistem verileriyle (İş Kalemleri, Bütçeler, Mesajlar) yanıtlamak.
+      ROLÜN: MavriOps Kurumsal Kanıt-Tabanlı Analiz Botu.
+      GÖREV: Kullanıcının sorusuna SADECE sağlanan JSON verilerini kullanarak yanıt vermek.
       
-      KULLANICI: ${user.name} (Rol: ${user.role})
+      SİSTEM METRİKLERİ (SSOT): ${JSON.stringify(metrics)}
+      AKTİF İŞLER: ${JSON.stringify(workItems.slice(0, 10).map(w => ({ id: w.id, title: w.title, status: w.status, priority: w.priority })))}
+      KULLANICI: ${user.name} (${user.role})
       KOMUT: "${command || 'genel durum özeti çıkar'}"
       
-      SİSTEM VERİLERİ (CONTEXT):
-      1. SOHBET: ${JSON.stringify(history.map(m => m.content))}
-      2. İŞLER: ${JSON.stringify(workItems.map(w => ({ id: w.id, title: w.title, status: w.status, site: w.siteId })))}
-      3. BÜTÇE: ${JSON.stringify(budgets.map(b => ({ id: b.scopeId, limit: b.amount, consumed: b.consumed })))}
-      
       YÖNERGELER:
-      - Sadece sistemdeki verileri kullan.
-      - Bütçe aşımı riski varsa mutlaka 'criticalRisk' alanında belirt.
-      - Dil profesyonel ve sonuç odaklı olmalı (Türkçe).
-      - Raporu yapılandırılmış JSON formatında dön.
+      1. Veri uydurma. Eğer veri yoksa "missingInfo" alanında belirt.
+      2. Durum kısmında SSOT metriklerini referans ver (örn: "Şu an onay bekleyen 7 işlem var").
+      3. Rapor dili profesyonel, sonuç odaklı ve Türkçedir.
+      4. Kaynak kısmına mutlaka ilgili ID'yi yaz (örn: "Kaynak: R-7001").
     `;
   }
 }

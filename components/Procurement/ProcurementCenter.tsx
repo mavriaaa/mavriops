@@ -1,5 +1,7 @@
 
 import React, { useContext, useState, useEffect } from 'react';
+// Added missing import for useNavigate
+import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../../App';
 import { 
   ShoppingCart, 
@@ -25,18 +27,22 @@ import {
   TrendingUp,
   Download,
   Share2,
-  ArrowUpRight
+  ArrowUpRight,
+  ArrowRightCircle
 } from 'lucide-react';
 import { ApiService } from '../../services/api';
 import { WorkItem, WorkItemType, WorkItemStatus, Role, Priority } from '../../types';
 import { MOCK_USERS } from '../../constants';
 
 const ProcurementCenter: React.FC = () => {
+  // Initialized navigate hook
+  const navigate = useNavigate();
   const context = useContext(AppContext);
   const [items, setItems] = useState<WorkItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<WorkItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
   
   const [newPr, setNewPr] = useState({
     title: '',
@@ -52,42 +58,54 @@ const ProcurementCenter: React.FC = () => {
 
   const load = async () => {
     const all = await ApiService.fetchWorkItems();
-    // Sadece Talep (Request) tipindeki işleri satınalma için getiriyoruz
     setItems(all.filter(i => i.type === WorkItemType.REQUEST));
   };
 
   if (!context) return null;
-  const { t, currentUser, addToast } = context;
+  const { t, currentUser, addToast, refreshMetrics } = context;
 
   const handleCreate = async () => {
     if (!newPr.title || newPr.amount <= 0) {
-      addToast('warning', 'Eksik Bilgi', 'Lütfen talep başlığı ve geçerli bir tutar giriniz.');
+      addToast('warning', 'Validasyon Hatası', 'Lütfen talep başlığı ve bütçe tutarını eksiksiz giriniz.');
       return;
     }
 
-    const created = await ApiService.createWorkItem({
-      type: WorkItemType.REQUEST,
-      title: newPr.title,
-      priority: newPr.amount > 50000 ? Priority.CRITICAL : (newPr.amount > 10000 ? Priority.HIGH : Priority.MEDIUM),
-      siteId: newPr.siteId,
-      status: WorkItemStatus.SUBMITTED,
-      requestData: {
-        amount: newPr.amount,
-        currency: 'TRY',
-        category: newPr.category,
-        costCenter: 'SATINALMA-2024',
-        items: [],
-        approvalChain: [
-          { stepNo: 1, roleRequired: Role.MANAGER, status: 'PENDING' },
-          { stepNo: 2, roleRequired: Role.DIRECTOR, status: 'PENDING' }
-        ]
-      }
-    }, currentUser);
+    setIsProcessing(true);
+    try {
+        const created = await ApiService.createWorkItem({
+            type: WorkItemType.REQUEST,
+            title: newPr.title,
+            priority: newPr.amount > 50000 ? Priority.CRITICAL : (newPr.amount > 10000 ? Priority.HIGH : Priority.MEDIUM),
+            siteId: newPr.siteId,
+            status: WorkItemStatus.SUBMITTED,
+            requestData: {
+                amount: newPr.amount,
+                currency: 'TRY',
+                category: newPr.category,
+                costCenter: 'PROC-SYNC-2024',
+                items: [],
+                approvalChain: [
+                    { stepNo: 1, roleRequired: Role.MANAGER, status: 'PENDING' },
+                    { stepNo: 2, roleRequired: Role.DIRECTOR, status: 'PENDING' }
+                ]
+            }
+        }, currentUser);
 
-    addToast('success', 'Talep Oluşturuldu', `${created.id} referans numarası ile onay süreci başlatıldı.`);
-    setIsModalOpen(false);
-    setNewPr({ title: '', amount: 0, category: 'MALZEME', siteId: 'SAHA-A', priority: Priority.MEDIUM });
-    load();
+        addToast('success', 'Süreç Başlatıldı', `${created.id} referanslı PR kaydı kurumsal iş akışına sevk edildi.`);
+        setIsModalOpen(false);
+        setNewPr({ title: '', amount: 0, category: 'MALZEME', siteId: 'SAHA-A', priority: Priority.MEDIUM });
+        load();
+        refreshMetrics();
+    } finally {
+        setIsProcessing(false);
+    }
+  };
+
+  const handleOrderIssuance = () => {
+      addToast('info', 'Sipariş Hazırlanıyor', 'Onaylı talep üzerinden resmi Satınalma Siparişi (PO) oluşturuluyor...');
+      setTimeout(() => {
+          addToast('success', 'Sipariş Yayınlandı', 'PO başarıyla oluşturuldu ve tedarikçiye e-posta ile iletildi.');
+      }, 1500);
   };
 
   const getLastApprover = (item: WorkItem) => {
@@ -114,16 +132,6 @@ const ProcurementCenter: React.FC = () => {
     }
   };
 
-  const getStatusLabel = (status: WorkItemStatus) => {
-    switch (status) {
-      case WorkItemStatus.APPROVED: return 'ONAYLANDI';
-      case WorkItemStatus.REJECTED: return 'REDDEDİLDİ';
-      case WorkItemStatus.IN_REVIEW: return 'İNCELEMEDE';
-      case WorkItemStatus.SUBMITTED: return 'GÖNDERİLDİ';
-      default: return status;
-    }
-  };
-
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-700 bg-slate-50 dark:bg-[#020617] h-full flex flex-col overflow-hidden">
       
@@ -134,11 +142,9 @@ const ProcurementCenter: React.FC = () => {
             <ShoppingCart size={32} />
           </div>
           <div>
-            <h1 className="text-3xl font-black tracking-tighter dark:text-white uppercase leading-none">
-              Satınalma Merkezi
-            </h1>
+            <h1 className="text-3xl font-black tracking-tighter dark:text-white uppercase leading-none">{t('procurement')}</h1>
             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-2 flex items-center gap-2">
-              <ShieldCheck size={12} className="text-emerald-500" /> Kurumsal Tedarik ve Onay Yönetimi
+              <ShieldCheck size={12} className="text-emerald-500" /> {t('vendorSupplyChain')}
             </p>
           </div>
         </div>
@@ -147,7 +153,7 @@ const ProcurementCenter: React.FC = () => {
             onClick={() => setIsModalOpen(true)}
             className="px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20 transition-all flex items-center gap-3 active:scale-95"
            >
-             <Plus size={18} /> Yeni PR Oluştur
+             <Plus size={18} /> Yeni Satınalma Kaydı (PR)
            </button>
         </div>
       </div>
@@ -158,33 +164,33 @@ const ProcurementCenter: React.FC = () => {
            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform text-emerald-600">
               <TrendingUp size={60} />
            </div>
-           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Bekleyen Talepler</p>
+           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Aksiyon Bekleyen</p>
            <h3 className="text-3xl font-black dark:text-white">{items.filter(i => i.status !== WorkItemStatus.APPROVED).length}</h3>
-           <p className="text-[9px] font-bold text-amber-500 mt-2 flex items-center gap-1 uppercase">Aksiyon Gerekli</p>
+           <p className="text-[9px] font-bold text-amber-500 mt-2 flex items-center gap-1 uppercase">İnceleme Safhasında</p>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group">
            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform text-indigo-600">
               <CheckCircle2 size={60} />
            </div>
-           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Onaylanan PR</p>
+           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Onaylı Talepler</p>
            <h3 className="text-3xl font-black dark:text-white">{items.filter(i => i.status === WorkItemStatus.APPROVED).length}</h3>
-           <p className="text-[9px] font-bold text-emerald-500 mt-2 flex items-center gap-1 uppercase">Siparişe Hazır</p>
+           <p className="text-[9px] font-bold text-emerald-500 mt-2 flex items-center gap-1 uppercase">Siparişe Sevk Edilebilir</p>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group">
            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform text-rose-600">
               <AlertCircle size={60} />
            </div>
-           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Kritik Talepler</p>
+           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">SLA Kritik</p>
            <h3 className="text-3xl font-black text-rose-500">{items.filter(i => i.priority === Priority.CRITICAL).length}</h3>
-           <p className="text-[9px] font-bold text-rose-400 mt-2 flex items-center gap-1 uppercase">Acil Onay Bekleyen</p>
+           <p className="text-[9px] font-bold text-rose-400 mt-2 flex items-center gap-1 uppercase">Acil Yönetim Kararı</p>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group">
            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform text-indigo-600">
               <CreditCard size={60} />
            </div>
-           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Toplam Bütçe</p>
+           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Dönem Tahsisatı</p>
            <h3 className="text-3xl font-black dark:text-white">₺842K</h3>
-           <p className="text-[9px] font-bold text-indigo-500 mt-2 flex items-center gap-1 uppercase">Cari Dönem Toplamı</p>
+           <p className="text-[9px] font-bold text-indigo-500 mt-2 flex items-center gap-1 uppercase">Onaylı Satınalma Gücü</p>
         </div>
       </div>
 
@@ -196,7 +202,7 @@ const ProcurementCenter: React.FC = () => {
               <header className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center shrink-0">
                  <div className="flex items-center gap-3">
                     <FileSearch size={18} className="text-emerald-600" />
-                    <h2 className="text-sm font-black dark:text-white uppercase tracking-tight">Aktif Satınalma Talepleri</h2>
+                    <h2 className="text-sm font-black dark:text-white uppercase tracking-tight">{t('activePRQueue')}</h2>
                  </div>
                  <div className="flex items-center gap-3">
                     <div className="relative">
@@ -205,7 +211,7 @@ const ProcurementCenter: React.FC = () => {
                          type="text" 
                          value={searchQuery}
                          onChange={(e) => setSearchQuery(e.target.value)}
-                         placeholder="Talep veya ID ara..." 
+                         placeholder="Talep ID veya Tanım..." 
                          className="pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-[10px] font-bold outline-none focus:ring-2 focus:ring-emerald-500 w-48 shadow-inner" 
                        />
                     </div>
@@ -216,11 +222,11 @@ const ProcurementCenter: React.FC = () => {
                  <table className="w-full text-left border-collapse">
                     <thead className="sticky top-0 z-10">
                        <tr className="bg-slate-50 dark:bg-slate-800 text-slate-400 text-[9px] font-black uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
-                          <th className="px-8 py-4">Durum</th>
-                          <th className="px-8 py-4">Talep & Detay</th>
-                          <th className="px-8 py-4">Tutar</th>
-                          <th className="px-8 py-4">Son Onaylayan</th>
-                          <th className="px-8 py-4 text-right">İşlem</th>
+                          <th className="px-8 py-4">{t('status')}</th>
+                          <th className="px-8 py-4">PR Bağlamı</th>
+                          <th className="px-8 py-4">{t('amount')}</th>
+                          <th className="px-8 py-4">Son İşlem</th>
+                          <th className="px-8 py-4 text-right">Detay</th>
                        </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -234,7 +240,7 @@ const ProcurementCenter: React.FC = () => {
                            >
                               <td className="px-8 py-6">
                                  <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${getStatusBadge(item.status)}`}>
-                                    {getStatusLabel(item.status)}
+                                    {t(item.status.toLowerCase() as any) || item.status}
                                  </span>
                               </td>
                               <td className="px-8 py-6">
@@ -259,8 +265,8 @@ const ProcurementCenter: React.FC = () => {
                                    </div>
                                  ) : (
                                    <div className="flex items-center gap-2 text-slate-300">
-                                      <User size={14} />
-                                      <span className="text-[9px] font-black uppercase">BEKLİYOR</span>
+                                      <Clock size={14} />
+                                      <span className="text-[9px] font-black uppercase">BEKLEMEDE</span>
                                    </div>
                                  )}
                               </td>
@@ -274,7 +280,7 @@ const ProcurementCenter: React.FC = () => {
                          <tr>
                             <td colSpan={5} className="py-24 text-center opacity-30 italic">
                                <FileSearch size={64} className="mx-auto mb-4" />
-                               <p className="text-[11px] font-black uppercase tracking-widest">Kriterlere uygun talep bulunamadı</p>
+                               <p className="text-[11px] font-black uppercase tracking-widest">Kayıt Bulunamadı</p>
                             </td>
                          </tr>
                        )}
@@ -297,11 +303,11 @@ const ProcurementCenter: React.FC = () => {
                       </div>
                       <div>
                          <h3 className="text-[11px] font-black dark:text-white uppercase tracking-tighter leading-none">{selectedItem.id}</h3>
-                         <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Satınalma Talep Detayı</p>
+                         <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">PR Yaşam Döngüsü</p>
                       </div>
                    </div>
                    <div className="flex gap-2">
-                      <button className="p-3 bg-white dark:bg-slate-800 rounded-2xl text-slate-400 hover:text-emerald-600 transition-colors shadow-sm"><Download size={18} /></button>
+                      <button title="Paylaş" className="p-3 bg-white dark:bg-slate-900 rounded-2xl text-slate-400 hover:text-emerald-600 transition-colors shadow-sm"><Share2 size={18} /></button>
                       <button onClick={() => setSelectedItem(null)} className="p-3 bg-white dark:bg-slate-800 rounded-2xl text-slate-400 hover:text-rose-500 transition-colors shadow-sm"><X size={18} /></button>
                    </div>
                 </div>
@@ -312,11 +318,11 @@ const ProcurementCenter: React.FC = () => {
                       <h2 className="text-2xl font-black dark:text-white uppercase leading-tight tracking-tighter mb-4">{selectedItem.title}</h2>
                       <div className="grid grid-cols-2 gap-4">
                          <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                            <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Toplam Tutar</p>
+                            <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Mali Valör</p>
                             <p className="text-xl font-black dark:text-white">₺{selectedItem.requestData?.amount.toLocaleString()}</p>
                          </div>
                          <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                            <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Kategori / Saha</p>
+                            <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Kategori / Lokasyon</p>
                             <p className="text-[11px] font-black dark:text-white uppercase">{selectedItem.requestData?.category} <span className="text-slate-300 mx-1">|</span> {selectedItem.siteId}</p>
                          </div>
                       </div>
@@ -325,10 +331,9 @@ const ProcurementCenter: React.FC = () => {
                    {/* Onay Zinciri Timeline */}
                    <div className="space-y-6">
                       <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                        <History size={16} className="text-emerald-500" /> Onay Zinciri ve Süreç Geçmişi
+                        <History size={16} className="text-emerald-500" /> {t('approvalTimeline')}
                       </h4>
                       <div className="space-y-8 relative">
-                         {/* Dikey Çizgi */}
                          <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-slate-100 dark:bg-slate-800" />
                          
                          {selectedItem.requestData?.approvalChain.map((step: any, i: number) => {
@@ -357,11 +362,6 @@ const ProcurementCenter: React.FC = () => {
                                          {step.decidedAt ? new Date(step.decidedAt).toLocaleDateString('tr-TR') : 'BEKLEMEDE'}
                                       </span>
                                    </div>
-                                   {step.note && (
-                                     <div className="mt-2 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-l-4 border-emerald-500">
-                                        <p className="text-[10px] font-medium text-slate-500 italic">"{step.note}"</p>
-                                     </div>
-                                   )}
                                 </div>
                              </div>
                            );
@@ -372,15 +372,15 @@ const ProcurementCenter: React.FC = () => {
 
                 {/* Alt Aksiyon Çubuğu */}
                 <div className="p-8 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 flex gap-4">
-                   <button className="flex-1 py-4 bg-slate-50 dark:bg-slate-800 text-slate-500 text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-rose-50 hover:text-rose-500 transition-all active:scale-95">Reddet</button>
+                   <button className="flex-1 py-4 bg-slate-50 dark:bg-slate-800 text-slate-500 text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-rose-50 hover:text-rose-500 transition-all active:scale-95">Revize Talep Et</button>
                    {selectedItem.status !== WorkItemStatus.APPROVED && (
-                     <button className="flex-2 py-4 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-emerald-600/20 hover:bg-emerald-700 transition-all active:scale-95 flex items-center justify-center gap-2">
-                        <CheckCircle2 size={16} /> Kararı Onayla
+                     <button onClick={() => navigate('/approvals')} className="flex-2 py-4 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-indigo-600/20 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2">
+                        <ArrowRightCircle size={16} /> Onay Ekranına Git
                      </button>
                    )}
                    {selectedItem.status === WorkItemStatus.APPROVED && (
-                     <button className="flex-2 py-4 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-indigo-600/20 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2">
-                        <Truck size={16} /> Sipariş Emri Oluştur
+                     <button onClick={handleOrderIssuance} className="flex-2 py-4 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-emerald-600/20 hover:bg-emerald-700 transition-all active:scale-95 flex items-center justify-center gap-2">
+                        <Truck size={16} /> Sipariş Emri (PO) Yayınla
                      </button>
                    )}
                 </div>
@@ -395,8 +395,8 @@ const ProcurementCenter: React.FC = () => {
            <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[3rem] border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
               <div className="p-10 border-b border-slate-100 dark:border-slate-800 bg-emerald-50/50 dark:bg-emerald-900/10 flex justify-between items-center">
                  <div>
-                    <h2 className="text-2xl font-black dark:text-white tracking-tighter uppercase leading-none">Yeni Satınalma Talebi</h2>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 italic">Kurumsal Satınalma Kaydı (PR Formu)</p>
+                    <h2 className="text-2xl font-black dark:text-white tracking-tighter uppercase leading-none">Satınalma Requisition</h2>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 italic">Kurumsal PR Protokolü</p>
                  </div>
                  <button onClick={() => setIsModalOpen(false)} className="p-3 bg-white dark:bg-slate-800 rounded-2xl text-slate-400 hover:text-rose-500 shadow-sm transition-colors">
                     <X size={20} />
@@ -405,19 +405,19 @@ const ProcurementCenter: React.FC = () => {
               
               <div className="p-10 space-y-6">
                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Talep Konusu / Başlık</label>
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">{t('requestSubject')}</label>
                     <input 
                       type="text" 
                       value={newPr.title}
                       onChange={(e) => setNewPr({...newPr, title: e.target.value})}
-                      placeholder="Örn: 200m3 C30 Beton Alımı"
+                      placeholder="Örn: 200m3 C30 Beton Alımı - Faz 2"
                       className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-emerald-500 rounded-[1.5rem] p-5 text-sm font-bold dark:text-white outline-none transition-all shadow-inner" 
                     />
                  </div>
 
                  <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Tahmini Tutar (TRY)</label>
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">{t('totalAmount')}</label>
                       <div className="relative">
                         <CreditCard size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input 
@@ -429,45 +429,48 @@ const ProcurementCenter: React.FC = () => {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Kategori</label>
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">{t('category')}</label>
                       <select 
                         value={newPr.category}
                         onChange={(e) => setNewPr({...newPr, category: e.target.value})}
                         className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-emerald-500 rounded-[1.5rem] p-5 text-sm font-bold dark:text-white outline-none appearance-none cursor-pointer"
                       >
-                         <option value="MALZEME">Malzeme / Stok</option>
-                         <option value="HIZMET">Hizmet / Servis</option>
-                         <option value="FINANS">Avans / Ödeme</option>
+                         <option value="MALZEME">Materyal / Ham Madde</option>
+                         <option value="HIZMET">Profesyonel Servis</option>
+                         <option value="FINANS">Avans Ödemesi</option>
                       </select>
                     </div>
                  </div>
 
                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Teslimat Sahası</label>
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">{t('site')}</label>
                     <select 
                       value={newPr.siteId}
                       onChange={(e) => setNewPr({...newPr, siteId: e.target.value})}
                       className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-emerald-500 rounded-[1.5rem] p-5 text-sm font-bold dark:text-white outline-none appearance-none cursor-pointer"
                     >
-                       <option value="SAHA-A">İstanbul Kuzey Şantiyesi</option>
-                       <option value="SAHA-B">Ankara Batı Lojistik</option>
-                       <option value="SAHA-C">İzmir Liman Projesi</option>
+                       <option value="SAHA-A">Saha Kuzey Entegrasyonu</option>
+                       <option value="SAHA-B">Ankara Lojistik Hub</option>
+                       <option value="SAHA-C">İzmir Liman Kompleksi</option>
                     </select>
                  </div>
               </div>
 
               <div className="p-10 bg-slate-50 dark:bg-slate-800/30 flex gap-4">
                  <button 
+                  disabled={isProcessing}
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-2xl transition-all"
+                  className="flex-1 py-5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-2xl transition-all disabled:opacity-50"
                  >
-                   Vazgeç
+                   İptal
                  </button>
                  <button 
+                  disabled={isProcessing}
                   onClick={handleCreate}
-                  className="flex-2 px-10 py-5 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl shadow-emerald-600/20 hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 active:scale-95"
+                  className="flex-2 px-10 py-5 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl shadow-emerald-600/20 hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
                  >
-                   <CheckSquare size={20} /> Onaya Gönder
+                   {isProcessing ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <CheckSquare size={20} />} 
+                   Onay Akışına Sevk Et
                  </button>
               </div>
            </div>

@@ -1,5 +1,4 @@
 
-
 export enum Role {
   OWNER = 'OWNER',
   ADMIN = 'ADMIN',
@@ -15,7 +14,63 @@ export enum WorkItemType {
   REQUEST = 'REQUEST',
   TASK = 'TASK',
   REPORT = 'REPORT',
-  INCIDENT = 'INCIDENT'
+  INCIDENT = 'INCIDENT',
+  SITE_APPROVAL = 'SITE_APPROVAL'
+}
+
+export enum ProjectStatus {
+  DRAFT = 'DRAFT',
+  ACTIVE = 'ACTIVE',
+  ON_HOLD = 'ON_HOLD',
+  COMPLETED = 'COMPLETED',
+  ARCHIVED = 'ARCHIVED'
+}
+
+export enum SiteStatus {
+  ACTIVE = 'ACTIVE',
+  SLOW = 'SLOW',
+  PLANNING = 'PLANNING',
+  CLOSED = 'CLOSED',
+  PENDING_APPROVAL = 'PENDING_APPROVAL'
+}
+
+export interface Project {
+  id: string;
+  projectCode: string;
+  name: string;
+  clientName?: string;
+  locationCity?: string;
+  locationDistrict?: string;
+  startDate?: string;
+  plannedEndDate?: string;
+  status: ProjectStatus;
+  ownerUserId: string;
+  primaryManagerId: string;
+  totalBudget: number;
+  currency: string;
+  managers: string[];
+  description?: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Site {
+  id: string;
+  siteCode: string;
+  projectId: string;
+  name: string;
+  type: 'GES' | 'INSAAT' | 'LOJISTIK' | 'DEPO' | 'OFIS' | 'DIGER';
+  address?: string;
+  status: SiteStatus;
+  budgetMonthlyLimit: number;
+  budgetTotalLimit?: number;
+  riskLevel: 'LOW' | 'MED' | 'HIGH';
+  leadUserId: string;
+  fieldTeam: string[];
+  communicationChannelId: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export enum WorkItemStatus {
@@ -73,65 +128,57 @@ export interface User {
   preferences?: UserPreferences;
 }
 
-export interface Organization {
-  id: string;
-  name: string;
-  type: 'COMPANY' | 'DEPARTMENT' | 'SITE' | 'PROJECT';
-  parentId?: string;
+export interface MetricSummary {
+  pendingApprovals: number;
+  activeTasks: number;
+  criticalIssues: number;
+  completionRate: number;
+  totalWorkforce: number;
+  activeWorkforce: number;
+  financials: {
+    approvedExpenses: number;
+    pendingExpenses: number;
+    totalIncome: number;
+    currency: string;
+  };
 }
 
-export interface Channel {
+export interface TimelineEvent {
   id: string;
-  name: string;
-  topic?: string;
-  isPrivate: boolean;
+  type: 'STATUS_CHANGE' | 'COMMENT' | 'APPROVAL' | 'REJECTION' | 'PR_CREATED' | 'PAH' | 'PAID' | 'SYSTEM' | 'ENTITY_CREATED';
+  actorId: string;
+  actorName: string;
+  summary: string;
+  timestamp: string;
+  metadata?: any;
 }
 
-export interface Board {
+export interface AuditEvent {
   id: string;
-  name: string;
+  type: string;
+  actorId: string;
+  actorName: string;
+  entityType: 'REQUEST' | 'TASK' | 'BUDGET' | 'USER' | 'FILE' | 'FINANCE' | 'PROJECT' | 'SITE';
+  entityId: string;
+  summary: string;
+  createdAt: string;
+  metadata?: any;
 }
 
-export interface List {
+export interface FinancialTransaction {
   id: string;
-  name: string;
-}
-
-export interface Card {
-  id: string;
-  listId: string;
+  type: 'INCOME' | 'EXPENSE';
   title: string;
-  assignees: string[];
-  checklists: {
-    items: { isDone: boolean }[];
-  }[];
-}
-
-export enum RequestType {
-  PURCHASE = 'PURCHASE',
-  ADVANCE = 'ADVANCE',
-  EXPENSE = 'EXPENSE'
-}
-
-export enum RequestStatus {
-  SUBMITTED = 'SUBMITTED',
-  APPROVED = 'APPROVED',
-  REJECTED = 'REJECTED'
-}
-
-// --- NEW ENTERPRISE TYPES ---
-
-export enum RaciRole {
-  RESPONSIBLE = 'R',
-  ACCOUNTABLE = 'A',
-  CONSULTED = 'C',
-  INFORMED = 'I'
-}
-
-export interface WorkItemRaci {
-  workItemId: string;
-  userId: string;
-  role: RaciRole;
+  amount: number;
+  currency: string;
+  category: string;
+  date: string;
+  vendor?: string;
+  siteId: string;
+  projectId: string; // Zorunlu Proje İlişkisi
+  recordedBy: string;
+  createdAt: string;
+  attachments: Attachment[];
 }
 
 export interface WorkflowDefinition {
@@ -171,38 +218,11 @@ export interface Budget {
   overLimitRoleRequired: Role;
 }
 
-export interface AuditLog {
-  id: string;
-  entityId: string;
-  actorId: string;
-  action: string;
-  payload: any;
-  timestamp: string;
-}
-
-// --- END NEW TYPES ---
-
-// Fix: Added Request interface to satisfy constants.ts imports
-export interface Request {
-  id: string;
-  requesterId: string;
-  title: string;
-  description: string;
-  type: RequestType;
-  status: RequestStatus;
-  amount: number;
-  currency: string;
-  siteId: string;
-  createdAt: string;
-}
-
-// Fix: Added Task interface to satisfy constants.ts imports
-export interface Task {
-  id: string;
-  title: string;
-  status: string;
-  priority: string;
-  assigneeId: string;
+export enum RequestType {
+  PURCHASE = 'PURCHASE',
+  ADVANCE = 'ADVANCE',
+  EXPENSE = 'EXPENSE',
+  SITE_CREATION = 'SITE_CREATION'
 }
 
 export interface WorkItem {
@@ -216,7 +236,7 @@ export interface WorkItem {
   assigneeId?: string;
   companyId: string;
   siteId: string;
-  projectId?: string;
+  projectId: string; // Zorunlu Proje İlişkisi
   dueDate?: string;
   progress?: number;
   attachments: Attachment[];
@@ -227,7 +247,77 @@ export interface WorkItem {
   completionNote?: string;
   completedAt?: string;
   completedBy?: string;
-  raci?: WorkItemRaci[]; // Added additive
+  raci?: any[];
+  timeline?: TimelineEvent[];
+}
+
+export interface Message {
+  id: string;
+  channelId?: string;
+  senderId: string;
+  content: string;
+  timestamp: string;
+  reactions: any[];
+  parentId?: string;
+  linkedWorkItemId?: string;
+  attachments?: Attachment[];
+  replyCount?: number;
+  isBotMessage?: boolean;
+  botData?: any;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  content: string;
+  workItemId?: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface Organization {
+  id: string;
+  name: string;
+  type: 'COMPANY' | 'SITE';
+  parentId?: string;
+}
+
+export interface Channel {
+  id: string;
+  name: string;
+  topic: string;
+  isPrivate: boolean;
+}
+
+export interface Board {
+  id: string;
+  name: string;
+}
+
+export interface List {
+  id: string;
+  name: string;
+}
+
+export interface Card {
+  id: string;
+  listId: string;
+  title: string;
+  assignees: string[];
+  checklists: {
+    id: string;
+    items: { id: string; title: string; isDone: boolean }[];
+  }[];
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  assigneeId: string;
 }
 
 export interface ToastMessage {
@@ -245,46 +335,18 @@ export interface BotContent {
     overdueTasks: string;
     nextStep: string;
   };
-  workItems: Array<{
+  workItems: {
     id: string;
     title: string;
-    type: string;
     status: string;
-    assignee: string;
-    dueDate: string;
     source: string;
-  }>;
-  actions: Array<{
+  }[];
+  actions: {
     task: string;
     assignee: string;
-    dueDate: string;
     source: string;
-  }>;
+  }[];
   missingInfo: string[];
 }
 
-export interface Message {
-  id: string;
-  channelId?: string;
-  senderId: string;
-  content: string;
-  timestamp: string;
-  reactions: any[];
-  parentId?: string;
-  linkedWorkItemId?: string;
-  attachments?: Attachment[];
-  replyCount?: number;
-  isBotMessage?: boolean;
-  botData?: BotContent;
-}
-
-export interface Notification {
-  id: string;
-  userId: string;
-  type: string;
-  title: string;
-  content: string;
-  workItemId?: string;
-  isRead: boolean;
-  createdAt: string;
-}
+export type RaciRole = 'R' | 'A' | 'C' | 'I';

@@ -4,6 +4,7 @@ import { WorkItem, RaciRole, User } from '../../types';
 import { MOCK_USERS } from '../../constants';
 import { Users, Info, BellRing } from 'lucide-react';
 import { ApiService } from '../../services/api';
+import UserAvatar from '../Common/UserAvatar';
 
 interface Props {
   workItem: WorkItem;
@@ -21,28 +22,28 @@ const RaciPanel: React.FC<Props> = ({ workItem, currentUser, onUpdate }) => {
     const currentRaci = workItem.raci || [];
     const filtered = currentRaci.filter(x => x.role !== role);
     const updated = [...filtered, { workItemId: workItem.id, userId, role }];
-    await ApiService.updateRaci(workItem.id, updated, currentUser.id);
+    await ApiService.updateRaci(workItem.id, updated, currentUser);
     onUpdate();
   };
 
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4">
       <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-        <Users size={16} className="text-indigo-500" /> RACI Sorumluluk Matrisi
+        <Users size={16} className="text-indigo-500" /> RACI Matrisi
       </h4>
       
       <div className="grid grid-cols-2 gap-4">
         {[
-          { key: 'R', label: 'Responsible', desc: 'İşi yapan / İcra eden' },
-          { key: 'A', label: 'Accountable', desc: 'Hesap veren / Onaylayan' },
-          { key: 'C', label: 'Consulted', desc: 'Danışılan uzman' },
-          { key: 'I', label: 'Informed', desc: 'Bilgilendirilenler' }
+          { key: 'R', label: 'Responsible', desc: 'İcra Eden' },
+          { key: 'A', label: 'Accountable', desc: 'Onaylayan' },
+          { key: 'C', label: 'Consulted', desc: 'Danışılan' },
+          { key: 'I', label: 'Informed', desc: 'Bilgilendirilen' }
         ].map(r => {
           const user = getRoleUser(r.key as RaciRole);
           return (
             <div key={r.key} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 group transition-all hover:border-indigo-300">
                <div className="flex justify-between items-start mb-2">
-                  <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black shadow-lg shadow-indigo-500/20">{r.key}</span>
+                  <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black shadow-lg">{r.key}</span>
                   <div className="text-right">
                      <p className="text-[9px] font-black dark:text-white uppercase tracking-tighter">{r.label}</p>
                      <p className="text-[8px] text-slate-400 font-bold uppercase">{r.desc}</p>
@@ -58,20 +59,13 @@ const RaciPanel: React.FC<Props> = ({ workItem, currentUser, onUpdate }) => {
                </select>
                {user && (
                  <div className="mt-3 flex items-center gap-2">
-                    <img src={user.avatar} className="w-5 h-5 rounded-full" />
+                    <UserAvatar name={user.name} size="sm" />
                     <span className="text-[10px] font-bold text-indigo-500 uppercase">{user.name}</span>
                  </div>
                )}
             </div>
           );
         })}
-      </div>
-
-      <div className="p-4 bg-indigo-50 dark:bg-indigo-950/20 rounded-2xl flex gap-3 border border-indigo-100 dark:border-indigo-900/30">
-        <BellRing size={18} className="text-indigo-500 shrink-0 mt-0.5" />
-        <p className="text-[9px] font-bold text-indigo-600 uppercase leading-relaxed">
-            RACI değişiklikleri ilgili kişilere anlık bildirim olarak gönderilir ve denetim kaydına (Audit Log) işlenir.
-        </p>
       </div>
     </div>
   );
