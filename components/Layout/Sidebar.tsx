@@ -1,125 +1,115 @@
 
-import React, { useContext, useState, useEffect } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
-  LayoutGrid, Inbox, ClipboardList, ShoppingCart, 
-  Wallet, Truck, BarChart3, Settings, Moon, Sun,
-  Languages, Activity, MessageSquare, ShieldCheck,
-  Briefcase, Maximize, Minimize, User as UserIcon,
-  ChevronRight, GitBranch, ShieldAlert, Map
+  LayoutGrid, Inbox, ClipboardList, 
+  BarChart3, ShieldCheck, ChevronRight, 
+  Users, Map, GitBranch, Database, Settings,
+  Receipt, Bot
 } from 'lucide-react';
 import { AppContext } from '../../App';
-import { Role } from '../../types';
-import { ENABLE_WORKFLOW_BUILDER, ENABLE_BUDGETS } from '../../constants';
+import { Role, WorkItemStatus } from '../../types';
+import { ApiService } from '../../services/api';
+import { getTranslation } from '../../i18n';
 import UserAvatar from '../Common/UserAvatar';
 
 const Sidebar: React.FC = () => {
   const context = useContext(AppContext);
   const navigate = useNavigate();
   const location = useLocation();
-  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [inboxCount, setInboxCount] = useState(0);
+
+  const activeProjectId = context?.activeProjectId;
 
   useEffect(() => {
-    const handleFsChange = () => setIsFullScreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', handleFsChange);
-    return () => document.removeEventListener('fullscreenchange', handleFsChange);
-  }, []);
+    const checkInbox = async () => {
+      const items = await ApiService.fetchWorkItems();
+      const pending = items.filter(i => 
+        (activeProjectId ? i.projectId === activeProjectId : true) &&
+        (i.status === WorkItemStatus.SUBMITTED || i.status === WorkItemStatus.NEED_INFO)
+      ).length;
+      setInboxCount(pending);
+    };
+    checkInbox();
+    const interval = setInterval(checkInbox, 10000);
+    return () => clearInterval(interval);
+  }, [activeProjectId]);
 
   if (!context) return null;
-  const { isDarkMode, setDarkMode, currentUser, language, setLanguage, t, setProfileOpen, metrics } = context;
+  const { currentUser, setProfileOpen, t } = context;
 
-  const toggleFullScreen = () => {
-    if (!document.fullscreenElement) document.documentElement.requestFullscreen();
-    else document.exitFullscreen();
-  };
+  const isAdmin = currentUser.role === Role.ADMIN || currentUser.role === Role.OWNER;
+  const isAccountant = currentUser.role === Role.ACCOUNTANT || isAdmin;
 
-  const NavItem: React.FC<{ label: string; icon: React.ElementType; path: string; badge?: number; color?: string }> = ({ label, icon: Icon, path, badge, color = "indigo" }) => {
-    const active = location.pathname.startsWith(path) && (path !== '/' || location.pathname === '/');
-    
+  const NavItem: React.FC<{ label: string; icon: React.ElementType; path: string; badge?: number; special?: boolean }> = ({ label, icon: Icon, path, badge, special }) => {
+    const active = location.pathname === path || location.pathname.startsWith(path + '/');
     return (
       <button
-        onClick={() => navigate(path)}
-        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all group relative ${
+        onClick={() => navigate(path + (activeProjectId ? `?projectId=${activeProjectId}` : ''))}
+        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-bold transition-all group relative ${
           active 
-            ? 'bg-indigo-600/10 text-indigo-500 dark:text-indigo-400' 
-            : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800/50'
-        }`}
+            ? 'bg-indigo-600/10 text-indigo-600 dark:text-indigo-400' 
+            : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50'
+        } ${special ? 'border border-indigo-500/20 bg-indigo-50/5 dark:bg-indigo-900/5' : ''}`}
       >
-        {active && <div className="absolute left-0 w-1 h-5 bg-indigo-600 rounded-r-full" />}
-        <Icon size={18} className={active ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'} />
-        <span className="flex-1 text-left truncate">{label}</span>
+        {active && <div className="absolute left-0 w-1.5 h-5 bg-indigo-600 rounded-r-full" />}
+        <Icon size={18} className={active ? 'text-indigo-600' : (special ? 'text-indigo-500' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300')} />
+        <span className={`flex-1 text-left truncate tracking-tight ${special ? 'text-indigo-600 dark:text-indigo-400 font-black' : ''}`}>{label}</span>
         {badge !== undefined && badge > 0 && (
-          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${active ? 'bg-indigo-600 text-white shadow-lg' : 'bg-rose-500 text-white'}`}>
-            {badge}
-          </span>
+          <span className="px-1.5 py-0.5 rounded bg-rose-500 text-white text-[9px] font-black min-w-[18px] text-center">{badge}</span>
         )}
       </button>
     );
   };
 
   return (
-    <aside className="w-64 flex flex-col h-full bg-white dark:bg-[#020617] border-r border-slate-200 dark:border-slate-800/60 flex-shrink-0 z-20">
+    <aside className="w-64 flex flex-col h-full bg-white dark:bg-[#020617] border-r border-slate-200 dark:border-slate-800/60 z-20">
       <div className="p-6 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-600/20">
-          <ShieldCheck size={20} />
+        <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-xl shadow-indigo-600/20">
+          <ShieldCheck size={22} />
         </div>
         <div>
-          <h1 className="text-base font-bold tracking-tight dark:text-white leading-none">MavriOps Pro</h1>
-          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-1 block">Enterprise v3.1</span>
+          <h1 className="text-base font-black tracking-tighter text-slate-900 dark:text-white leading-none uppercase">MavriOps</h1>
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1 block">Phase-1 Core</span>
         </div>
       </div>
 
-      <div className="flex-1 px-3 space-y-1 overflow-y-auto no-scrollbar">
-        <NavItem label={t('dashboard')} icon={LayoutGrid} path="/" />
-        <NavItem label={t('workItems')} icon={Inbox} path="/work-items" badge={metrics?.activeTasks} />
-        <NavItem label={t('pendingApprovals')} icon={ShieldCheck} path="/approvals" badge={metrics?.pendingApprovals} />
-        <NavItem label={t('chat')} icon={MessageSquare} path="/chat" />
-        
-        <div className="pt-6 pb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 opacity-60">Operasyonel</div>
-        <NavItem label={t('projectsSites')} icon={Map} path="/projects" />
-        <NavItem label={t('requestCenter')} icon={ClipboardList} path="/requests" />
-        <NavItem label={t('fieldOps')} icon={Truck} path="/field" badge={metrics?.criticalIssues} />
+      <nav className="flex-1 px-3 space-y-1 overflow-y-auto no-scrollbar pt-2">
+        <NavItem label={t('dashboard')} icon={LayoutGrid} path="/dashboard" />
+        <NavItem label="Ops Asistan" icon={Bot} path="/assistant" special />
+        <NavItem label={t('requests')} icon={ClipboardList} path="/requests" />
+        <NavItem label={t('inbox')} icon={Inbox} path="/inbox" badge={inboxCount} />
+        {isAccountant && <NavItem label={t('accounting')} icon={Receipt} path="/accounting" />}
         <NavItem label={t('reports')} icon={BarChart3} path="/reports" />
 
-        <div className="pt-6 pb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 opacity-60">Yönetim</div>
-        <NavItem label={t('hr')} icon={Briefcase} path="/hr" />
-        <NavItem label={t('procurement')} icon={ShoppingCart} path="/procurement" />
-        <NavItem label={t('accounting')} icon={Wallet} path="/accounting" />
+        {isAdmin && (
+          <div className="pt-8 pb-2">
+            <p className="px-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 opacity-60 mb-2 flex items-center gap-2">
+              <Settings size={12} /> {t('admin')}
+            </p>
+            <div className="space-y-1">
+              <NavItem label={t('projects')} icon={Map} path="/admin/projects" />
+              <NavItem label={t('users')} icon={Users} path="/admin/users" />
+              <NavItem label={t('workflows')} icon={GitBranch} path="/admin/workflows" />
+              <NavItem label={t('masterdata')} icon={Database} path="/admin/masterdata" />
+            </div>
+          </div>
+        )}
+      </nav>
 
-        {(ENABLE_WORKFLOW_BUILDER || ENABLE_BUDGETS) && (
-          <div className="pt-6 pb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 opacity-60">Enterprise Control</div>
-        )}
-        {ENABLE_WORKFLOW_BUILDER && (currentUser.role === Role.OWNER || currentUser.role === Role.ADMIN) && (
-          <NavItem label="Workflow Studio" icon={GitBranch} path="/admin/workflow" />
-        )}
-        {ENABLE_BUDGETS && (
-          <NavItem label="Bütçe Denetimi" icon={ShieldAlert} path="/finance/budgets" />
-        )}
-      </div>
-
-      <div className="p-4 border-t border-slate-200 dark:border-slate-800/60 space-y-4">
-        <div className="flex items-center gap-2">
-          <button title="Tema Değiştir" onClick={() => setDarkMode(!isDarkMode)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors">
-            {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-          <button title="Tam Ekran" onClick={toggleFullScreen} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors">
-            {isFullScreen ? <Minimize size={16} /> : <Maximize size={16} />}
-          </button>
-          <button title="Dil Seçeneği" onClick={() => setLanguage(language === 'en' ? 'tr' : 'en')} className="ml-auto text-[11px] font-bold text-slate-500 hover:text-indigo-500 uppercase px-2 py-1">
-            {language}
-          </button>
-        </div>
-        
+      <div className="p-4 border-t border-slate-100 dark:border-slate-800/60">
         <button 
           onClick={() => setProfileOpen(true)}
-          className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-500/50 transition-all text-left group"
+          className="w-full flex items-center gap-3 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-500/50 transition-all text-left group shadow-sm"
         >
           <UserAvatar name={currentUser.name} size="md" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold truncate dark:text-white">{currentUser.name}</p>
-            <p className="text-[10px] text-indigo-500 font-medium uppercase tracking-tight">{currentUser.role}</p>
+            <p className="text-xs font-black truncate text-slate-900 dark:text-white uppercase tracking-tight">{currentUser.name}</p>
+            <p className="text-[9px] text-indigo-500 font-bold uppercase tracking-widest leading-none">
+              {t(currentUser.role)}
+            </p>
           </div>
-          <ChevronRight size={14} className="text-slate-400 group-hover:text-indigo-500 transition-transform group-hover:translate-x-0.5" />
+          <ChevronRight size={14} className="text-slate-300 group-hover:text-indigo-500 transition-transform" />
         </button>
       </div>
     </aside>

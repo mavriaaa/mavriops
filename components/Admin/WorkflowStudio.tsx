@@ -26,11 +26,13 @@ const WorkflowStudio: React.FC = () => {
 
   const addStep = () => {
     if (!selectedWf) return;
+    // Fix: Added missing required 'status' property to WorkflowStep
     const step: WorkflowStep = {
       id: `ws-${Date.now()}`,
       stepNo: selectedWf.steps.length + 1,
       mode: 'ROLE',
       roleRequired: Role.MANAGER,
+      status: 'PENDING',
       requireNote: true
     };
     setSelectedWf({ ...selectedWf, steps: [...selectedWf.steps, step] });

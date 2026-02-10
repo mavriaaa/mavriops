@@ -32,7 +32,7 @@ const Dashboard: React.FC = () => {
       </div>
   );
 
-  const { t, metrics, activeProjectId, projects } = context;
+  const { t, metrics, activeProjectId, projects, formatMoney } = context;
   const activeProject = projects.find(p => p.id === activeProjectId);
 
   return (
@@ -48,7 +48,7 @@ const Dashboard: React.FC = () => {
                 {activeProject?.name || 'Komuta Merkezi'}
               </h1>
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-2 flex items-center gap-2">
-                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Proje Durumu: {activeProject?.status} (Kod: {activeProject?.projectCode})
+                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Proje Durumu: {t(activeProject?.status || '')} (Kod: {activeProject?.projectCode})
               </p>
            </div>
         </div>
@@ -63,10 +63,10 @@ const Dashboard: React.FC = () => {
 
       {/* Project Specific KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-        <SummaryCard title="Açık Onaylar" value={metrics.pendingApprovals} icon={Clock} color="amber" onClick={() => navigate('/approvals')} unit="İşlem" />
-        <SummaryCard title="Saha Görevleri" value={metrics.activeTasks} icon={Zap} color="indigo" onClick={() => navigate('/work-items')} unit="Aktif" />
-        <SummaryCard title="Kritik Riskler" value={metrics.criticalIssues} icon={AlertTriangle} color="rose" onClick={() => navigate('/field')} unit="Eskalasyon" />
-        <SummaryCard title="Bütçe Kullanımı" value={`%${Math.round((metrics.financials.approvedExpenses / (activeProject?.totalBudget || 1)) * 100)}`} icon={CheckCircle2} color="emerald" onClick={() => navigate('/accounting')} unit="Finansal" />
+        <SummaryCard title="Açık Onaylar" value={metrics.pendingApprovals} icon={Clock} color="amber" onClick={() => navigate('/inbox')} unit="İşlem" />
+        <SummaryCard title="Saha Görevleri" value={metrics.activeTasks} icon={Zap} color="indigo" onClick={() => navigate('/requests')} unit="Aktif" />
+        <SummaryCard title="Kritik Riskler" value={metrics.criticalIssues} icon={AlertTriangle} color="rose" onClick={() => navigate('/requests')} unit="Eskalasyon" />
+        <SummaryCard title="Bütçe Kullanımı" value={`%${Math.round((metrics.financials.approvedExpenses / (activeProject?.totalBudget || 1)) * 100)}`} icon={CheckCircle2} color="emerald" onClick={() => navigate('/reports')} unit="Finansal" />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-10">
@@ -76,7 +76,7 @@ const Dashboard: React.FC = () => {
                  <h2 className="text-xl font-black dark:text-white flex items-center gap-3 uppercase">
                     <History size={20} className="text-indigo-500" /> Proje Aktivite İzleme
                  </h2>
-                 <button onClick={() => navigate('/work-items')} className="px-6 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-indigo-600 transition-all">Audit Günlüğü</button>
+                 <button onClick={() => navigate('/requests')} className="px-6 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-indigo-600 transition-all">Audit Günlüğü</button>
               </div>
               
               <div className="flex-1 overflow-y-auto no-scrollbar max-h-[500px]">
@@ -115,15 +115,17 @@ const Dashboard: React.FC = () => {
               <div className="space-y-8 relative z-10">
                  <div>
                     <span className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em] block mb-2">Harcama / Toplam Bütçe</span>
-                    <p className="text-4xl font-black tracking-tighter">₺{(metrics.financials.approvedExpenses / 1000).toFixed(1)}K / ₺{((activeProject?.totalBudget || 0) / 1000).toFixed(0)}K</p>
+                    <p className="text-3xl font-black tracking-tighter leading-tight">
+                        {formatMoney(metrics.financials.approvedExpenses)} / {formatMoney(activeProject?.totalBudget || 0)}
+                    </p>
                  </div>
                  <div className="h-px bg-white/10 w-full" />
                  <div className="flex justify-between items-end">
                     <div>
                        <span className="text-[10px] font-black opacity-60 uppercase tracking-[0.2em] block mb-1">Kalan Bakiye</span>
-                       <p className="text-xl font-black">₺{(((activeProject?.totalBudget || 0) - metrics.financials.approvedExpenses) / 1000).toFixed(1)}K</p>
+                       <p className="text-xl font-black">{formatMoney(((activeProject?.totalBudget || 0) - metrics.financials.approvedExpenses))}</p>
                     </div>
-                    <button onClick={() => navigate('/accounting')} className="p-4 bg-white/10 hover:bg-white/20 rounded-2xl transition-all"><ArrowUpRight size={20} /></button>
+                    <button onClick={() => navigate('/reports')} className="p-4 bg-white/10 hover:bg-white/20 rounded-2xl transition-all"><ArrowUpRight size={20} /></button>
                  </div>
               </div>
            </div>

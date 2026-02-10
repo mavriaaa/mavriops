@@ -2,7 +2,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ApiService } from "./api";
 import { Message, User, WorkItem, BotContent } from "../types";
-import { BudgetService } from "./budgetService";
 
 export class BotService {
   private static BOT_USER_ID = 'u-bot';
@@ -10,7 +9,7 @@ export class BotService {
   static async processMention(message: Message, currentUser: User): Promise<void> {
     if (!message.content.toLowerCase().includes('@mavribot')) return;
 
-    // Correctly initialize GoogleGenAI inside the method to use the latest API key.
+    // Fix: Use named parameter for apiKey as required by SDK guidelines
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
     const processingMsg: Message = {
@@ -18,7 +17,7 @@ export class BotService {
       channelId: message.channelId,
       parentId: message.parentId,
       senderId: this.BOT_USER_ID,
-      content: '⌛ MavriOps Kurumsal Zeka Motoru analiz yapıyor...',
+      content: '⌛ Ops Asistan: Mevcut bağlam ve sistem verileri analiz ediliyor...',
       timestamp: new Date().toISOString(),
       reactions: [],
       isBotMessage: true
@@ -27,16 +26,16 @@ export class BotService {
     await ApiService.sendMessage(processingMsg);
 
     try {
-      const messages = await ApiService.fetchMessages(message.channelId || 'c1');
-      const history = messages.slice(-15);
       const metrics = await ApiService.getMetricSummary();
       const allWorkItems = await ApiService.fetchWorkItems();
+      const auditLogs = await ApiService.getAuditLogs();
       
       const command = message.content.replace(/@mavribot/gi, '').trim();
-      const prompt = this.buildEvidencePrompt(command, history, metrics, allWorkItems, currentUser);
+      const prompt = this.buildEvidencePrompt(command, metrics, allWorkItems, auditLogs, currentUser);
 
+      // Fix: Upgrade to gemini-3-pro-preview for better reasoning on operational data analysis
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3-pro-preview',
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -46,11 +45,11 @@ export class BotService {
                summary: {
                  type: Type.OBJECT,
                  properties: {
-                   overall: { type: Type.STRING },
-                   criticalRisk: { type: Type.STRING },
+                   overall: { type: Type.STRING, description: "Ne oluyor? (Kısa durum tespiti)" },
+                   criticalRisk: { type: Type.STRING, description: "Neden önemli? (Kritik etki)" },
                    pendingApprovals: { type: Type.STRING },
                    overdueTasks: { type: Type.STRING },
-                   nextStep: { type: Type.STRING }
+                   nextStep: { type: Type.STRING, description: "Ne yapılmalı? (Aksiyon önerisi)" }
                  }
                },
                workItems: {
@@ -83,37 +82,40 @@ export class BotService {
         }
       });
 
-      // Corrected extraction of text output from GenerateContentResponse. Use .text property.
+      // Fix: Directly access .text property from GenerateContentResponse as per guidelines
       const botData: BotContent = JSON.parse(response.text || '{}');
 
       await ApiService.updateMessage(processingMsg.id, {
-        content: `🤖 **Sistem Veri Özeti** (@${currentUser.name} için):`,
+        content: `🤖 **Ops Asistan Karar Destek Raporu** (@${currentUser.name} için):`,
         botData: botData
       });
 
     } catch (error) {
-      console.error("Bot Error:", error);
+      console.error("Ops Assistant Error:", error);
       await ApiService.updateMessage(processingMsg.id, {
-        content: '❌ Mevcut sistem verilerine ulaşılamadı. Lütfen teknik birimi bilgilendirin.'
+        content: '❌ Operasyonel veri analiz motoru şu an yanıt vermiyor. Lütfen teknik birimi bilgilendirin.'
       });
     }
   }
 
-  private static buildEvidencePrompt(command: string, history: Message[], metrics: any, workItems: WorkItem[], user: User): string {
+  private static buildEvidencePrompt(command: string, metrics: any, workItems: WorkItem[], auditLogs: any[], user: User): string {
     return `
-      ROLÜN: MavriOps Kurumsal Kanıt-Tabanlı Analiz Botu.
-      GÖREV: Kullanıcının sorusuna SADECE sağlanan JSON verilerini kullanarak yanıt vermek.
+      ROLÜN: MavriOps Kurleşik “Ops Asistan”ısın.
+      KİMLİK: Dijital Operasyon ve Karar Destek Yöneticisi.
+      DAVRANIŞ: Profesyonel, net ve aksiyon odaklı. Asla varsayımda bulunma.
       
-      SİSTEM METRİKLERİ (SSOT): ${JSON.stringify(metrics)}
-      AKTİF İŞLER: ${JSON.stringify(workItems.slice(0, 10).map(w => ({ id: w.id, title: w.title, status: w.status, priority: w.priority })))}
-      KULLANICI: ${user.name} (${user.role})
+      SİSTEM METRİKLERİ: ${JSON.stringify(metrics)}
+      AKTİF İŞLER (Örneklem): ${JSON.stringify(workItems.slice(0, 10).map(w => ({ id: w.id, title: w.title, status: w.status, priority: w.priority })))}
+      SON AKTİVİTELER: ${JSON.stringify(auditLogs.slice(0, 5))}
+      
+      KULLANICI: ${user.name} (Rol: ${user.role})
       KOMUT: "${command || 'genel durum özeti çıkar'}"
       
       YÖNERGELER:
-      1. Veri uydurma. Eğer veri yoksa "missingInfo" alanında belirt.
-      2. Durum kısmında SSOT metriklerini referans ver (örn: "Şu an onay bekleyen 7 işlem var").
-      3. Rapor dili profesyonel, sonuç odaklı ve Türkçedir.
-      4. Kaynak kısmına mutlaka ilgili ID'yi yaz (örn: "Kaynak: R-7001").
+      1. Sadece sağlanan SSOT (Single Source of Truth) verilerini kullan.
+      2. Asla kullanıcı adına onay/red işlemi "yaptım" deme. Sadece öneri sun.
+      3. Yanıt yapısı: Ne oluyor? Neden önemli? Ne yapılmalı?
+      4. Profesyonel ve mesafeli bir ton kullan.
     `;
   }
 }

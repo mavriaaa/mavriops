@@ -3,7 +3,7 @@ import React, { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../../App';
 import { ApiService } from '../../services/api';
-import { Project, Site, ProjectStatus, SiteStatus, Role, User } from '../../types';
+import { Project, Site, ProjectStatus, SiteStatus, Role, User, WorkItemType } from '../../types';
 import { 
   Map, 
   Briefcase, 
@@ -81,6 +81,7 @@ const ProjectSiteCenter: React.FC = () => {
   if (!context) return null;
   const { t, currentUser, addToast, refreshMetrics } = context;
 
+  // Added MANAGER and DIRECTOR to canCreate roles check
   const canCreate = currentUser.role === Role.OWNER || currentUser.role === Role.MANAGER || currentUser.role === Role.DIRECTOR;
   const canRequestSite = currentUser.role === Role.SUPERVISOR;
 
@@ -103,7 +104,8 @@ const ProjectSiteCenter: React.FC = () => {
     }
     const result = await ApiService.createSite(newSite as any, currentUser);
     
-    if ('type' in result && result.type === 'SITE_APPROVAL') {
+    // Fixed unintentional string comparison by using the enum member
+    if ('type' in result && result.type === WorkItemType.SITE_APPROVAL) {
         addToast('info', 'Onay Talebi Gönderildi', 'Şantiye açılış talebi üst yönetime iletildi.');
     } else {
         addToast('success', 'Saha Aktif Edildi', `${newSite.name} operasyonel duruma geçti.`);
@@ -206,13 +208,13 @@ const ProjectSiteCenter: React.FC = () => {
                     
                     <div className="space-y-4 mb-8">
                       <div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase">
-                         <Users size={14} className="text-indigo-500" /> {prj.clientName || 'İsimsiz Müşteri'}
+                         <Users size={14} className="text-indigo-600" /> {prj.clientName || 'İsimsiz Müşteri'}
                       </div>
                       
                       <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
                          <div className="flex justify-between text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
                             <span>Proje Bütçesi</span>
-                            <span className="text-indigo-600">{prj.currency} {prj.totalBudget?.toLocaleString()}</span>
+                            <span className="text-indigo-600">{prj.currency || 'TRY'} {prj.totalBudget?.toLocaleString()}</span>
                          </div>
                          <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                             <div className="h-full bg-indigo-600 w-1/3 rounded-full" />
@@ -272,7 +274,7 @@ const ProjectSiteCenter: React.FC = () => {
                       <div className="grid grid-cols-2 gap-3">
                          <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl">
                             <p className="text-[8px] font-black text-slate-400 uppercase mb-1">AYLIK LİMİT</p>
-                            <p className="text-xs font-black dark:text-white">₺{site.budgetMonthlyLimit.toLocaleString()}</p>
+                            <p className="text-xs font-black dark:text-white">₺{site.budgetMonthlyLimit?.toLocaleString()}</p>
                          </div>
                          <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl">
                             <p className="text-[8px] font-black text-slate-400 uppercase mb-1">RİSK SEVİYESİ</p>
@@ -291,7 +293,7 @@ const ProjectSiteCenter: React.FC = () => {
 
                     <div className="mt-auto pt-6 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between">
                        <div className="flex items-center gap-3 text-[10px] font-black text-slate-400 uppercase">
-                          <Users size={14} /> {site.fieldTeam.length} Personel
+                          <Users size={14} /> {site.fieldTeam?.length || 0} Personel
                        </div>
                        <button onClick={() => navigate(`/sites/${site.id}`)} className="p-3 bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-indigo-600 rounded-xl transition-all">
                           <ChevronRight size={18} />
@@ -353,7 +355,7 @@ const ProjectSiteCenter: React.FC = () => {
                          className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500 rounded-[1.5rem] p-5 pl-14 text-sm font-bold dark:text-white outline-none appearance-none cursor-pointer"
                        >
                           <option value="">Seçiniz...</option>
-                          {users.filter(u => u.role === Role.MANAGER || u.role === Role.OWNER).map(u => (
+                          {users.filter(u => u.role === Role.MANAGER || u.role === Role.OWNER || u.role === Role.PROJECT_MANAGER).map(u => (
                              <option key={u.id} value={u.id}>{u.name}</option>
                           ))}
                        </select>
@@ -418,7 +420,7 @@ const ProjectSiteCenter: React.FC = () => {
       {/* New Site Modal - RICH VERSION */}
       {isNewSiteModalOpen && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 animate-in fade-in">
-           <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3rem] border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95">
+           <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3rem] border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
               <div className="p-10 border-b border-slate-100 dark:border-slate-800 bg-emerald-50/50 dark:bg-emerald-900/10 flex justify-between items-center">
                  <div>
                     <h2 className="text-2xl font-black dark:text-white uppercase tracking-tighter">{canCreate ? t('newSite') : 'Şantiye Talep Et'}</h2>
@@ -460,7 +462,7 @@ const ProjectSiteCenter: React.FC = () => {
                          className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-emerald-500 rounded-[1.5rem] p-5 text-sm font-bold dark:text-white outline-none appearance-none cursor-pointer shadow-inner"
                        >
                           <option value="">Seçiniz...</option>
-                          {users.filter(u => u.role === Role.SUPERVISOR || u.role === Role.EMPLOYEE).map(u => (
+                          {users.filter(u => u.role === Role.SUPERVISOR || u.role === Role.EMPLOYEE || u.role === Role.SITE_CHIEF).map(u => (
                              <option key={u.id} value={u.id}>{u.name}</option>
                           ))}
                        </select>

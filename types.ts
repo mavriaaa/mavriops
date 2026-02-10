@@ -2,93 +2,43 @@
 export enum Role {
   OWNER = 'OWNER',
   ADMIN = 'ADMIN',
-  DIRECTOR = 'DIRECTOR',
-  MANAGER = 'MANAGER',
-  SUPERVISOR = 'SUPERVISOR',
+  PROJECT_MANAGER = 'PROJECT_MANAGER',
+  SITE_CHIEF = 'SITE_CHIEF',
   PROCUREMENT = 'PROCUREMENT',
   ACCOUNTANT = 'ACCOUNTANT',
-  EMPLOYEE = 'EMPLOYEE'
-}
-
-export enum WorkItemType {
-  REQUEST = 'REQUEST',
-  TASK = 'TASK',
-  REPORT = 'REPORT',
-  INCIDENT = 'INCIDENT',
-  SITE_APPROVAL = 'SITE_APPROVAL'
-}
-
-export enum ProjectStatus {
-  DRAFT = 'DRAFT',
-  ACTIVE = 'ACTIVE',
-  ON_HOLD = 'ON_HOLD',
-  COMPLETED = 'COMPLETED',
-  ARCHIVED = 'ARCHIVED'
-}
-
-export enum SiteStatus {
-  ACTIVE = 'ACTIVE',
-  SLOW = 'SLOW',
-  PLANNING = 'PLANNING',
-  CLOSED = 'CLOSED',
-  PENDING_APPROVAL = 'PENDING_APPROVAL'
-}
-
-export interface Project {
-  id: string;
-  projectCode: string;
-  name: string;
-  clientName?: string;
-  locationCity?: string;
-  locationDistrict?: string;
-  startDate?: string;
-  plannedEndDate?: string;
-  status: ProjectStatus;
-  ownerUserId: string;
-  primaryManagerId: string;
-  totalBudget: number;
-  currency: string;
-  managers: string[];
-  description?: string;
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Site {
-  id: string;
-  siteCode: string;
-  projectId: string;
-  name: string;
-  type: 'GES' | 'INSAAT' | 'LOJISTIK' | 'DEPO' | 'OFIS' | 'DIGER';
-  address?: string;
-  status: SiteStatus;
-  budgetMonthlyLimit: number;
-  budgetTotalLimit?: number;
-  riskLevel: 'LOW' | 'MED' | 'HIGH';
-  leadUserId: string;
-  fieldTeam: string[];
-  communicationChannelId: string;
-  createdAt: string;
-  updatedAt: string;
+  EMPLOYEE = 'EMPLOYEE',
+  MANAGER = 'MANAGER',
+  DIRECTOR = 'DIRECTOR',
+  SUPERVISOR = 'SUPERVISOR'
 }
 
 export enum WorkItemStatus {
   DRAFT = 'DRAFT',
   SUBMITTED = 'SUBMITTED',
-  IN_REVIEW = 'IN_REVIEW',
-  APPROVED = 'APPROVED',
+  NEED_INFO = 'NEED_INFO',
   REJECTED = 'REJECTED',
-  REVISION_REQUIRED = 'REVISION_REQUIRED',
+  APPROVED_L1 = 'APPROVED_L1',
+  APPROVED_L2 = 'APPROVED_L2',
+  APPROVED_FINAL = 'APPROVED_FINAL',
+  ORDERED = 'ORDERED',
+  DELIVERED = 'DELIVERED',
+  INVOICED = 'INVOICED',
+  CLOSED = 'CLOSED',
   CANCELLED = 'CANCELLED',
-  TODO = 'TODO',
-  IN_PROGRESS = 'IN_PROGRESS',
-  BLOCKED = 'BLOCKED',
   DONE = 'DONE',
-  OPEN = 'OPEN',
-  TRIAGED = 'TRIAGED',
-  RESOLVED = 'RESOLVED',
-  CLOSED = 'CLOSED'
+  APPROVED = 'APPROVED',
+  IN_REVIEW = 'IN_REVIEW',
+  IN_PROGRESS = 'IN_PROGRESS'
+}
+
+export enum WorkItemType {
+  MATERIAL = 'MATERIAL',
+  SERVICE = 'SERVICE',
+  EXPENSE = 'EXPENSE',
+  ADVANCE = 'ADVANCE',
+  TASK = 'TASK',
+  REQUEST = 'REQUEST',
+  SITE_APPROVAL = 'SITE_APPROVAL'
 }
 
 export enum Priority {
@@ -98,157 +48,61 @@ export enum Priority {
   CRITICAL = 'CRITICAL'
 }
 
-export interface Attachment {
-  id: string;
-  name: string;
-  url: string;
-  size: number;
-  type: string;
-  uploadedBy: string;
-  createdAt: string;
+export enum ProjectStatus {
+  ACTIVE = 'ACTIVE',
+  PLANNING = 'PLANNING',
+  COMPLETED = 'COMPLETED',
+  ON_HOLD = 'ON_HOLD',
+  CLOSED = 'CLOSED'
 }
 
-export interface UserPreferences {
-  theme: 'dark' | 'light';
-  language: 'tr' | 'en';
-  sidebarCollapsed: boolean;
-  accentColor: string;
-  notificationLevel: 'all' | 'mentions' | 'none';
-  defaultLanding: string;
-}
-
-export interface User {
-  id: string;
-  name: string;
-  role: Role;
-  avatar: string;
-  departmentId: string;
-  companyId: string;
-  status: 'online' | 'away' | 'offline';
-  preferences?: UserPreferences;
-}
-
-export interface MetricSummary {
-  pendingApprovals: number;
-  activeTasks: number;
-  criticalIssues: number;
-  completionRate: number;
-  totalWorkforce: number;
-  activeWorkforce: number;
-  financials: {
-    approvedExpenses: number;
-    pendingExpenses: number;
-    totalIncome: number;
-    currency: string;
-  };
-}
-
-export interface TimelineEvent {
-  id: string;
-  type: 'STATUS_CHANGE' | 'COMMENT' | 'APPROVAL' | 'REJECTION' | 'PR_CREATED' | 'PAH' | 'PAID' | 'SYSTEM' | 'ENTITY_CREATED';
-  actorId: string;
-  actorName: string;
-  summary: string;
-  timestamp: string;
-  metadata?: any;
-}
-
-export interface AuditEvent {
-  id: string;
-  type: string;
-  actorId: string;
-  actorName: string;
-  entityType: 'REQUEST' | 'TASK' | 'BUDGET' | 'USER' | 'FILE' | 'FINANCE' | 'PROJECT' | 'SITE';
-  entityId: string;
-  summary: string;
-  createdAt: string;
-  metadata?: any;
-}
-
-export interface FinancialTransaction {
-  id: string;
-  type: 'INCOME' | 'EXPENSE';
-  title: string;
-  amount: number;
-  currency: string;
-  category: string;
-  date: string;
-  vendor?: string;
-  siteId: string;
-  projectId: string; // Zorunlu Proje İlişkisi
-  recordedBy: string;
-  createdAt: string;
-  attachments: Attachment[];
-}
-
-export interface WorkflowDefinition {
-  id: string;
-  name: string;
-  appliesTo: RequestType;
-  isActive: boolean;
-  steps: WorkflowStep[];
-  conditions: WorkflowCondition[];
-}
-
-export interface WorkflowStep {
-  id: string;
-  stepNo: number;
-  mode: 'ROLE' | 'USER' | 'DYNAMIC';
-  roleRequired?: Role;
-  userId?: string;
-  dynamicKey?: 'SITE_MANAGER' | 'PROJECT_MANAGER';
-  slaHours?: number;
-  requireNote: boolean;
-}
-
-export interface WorkflowCondition {
-  field: 'amount' | 'category' | 'siteId';
-  operator: '>' | '<' | '==' | 'in';
-  value: any;
-}
-
-export interface Budget {
-  id: string;
-  scopeType: 'SITE' | 'PROJECT';
-  scopeId: string;
-  period: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL';
-  amount: number;
-  currency: string;
-  consumed: number;
-  overLimitRoleRequired: Role;
+export enum SiteStatus {
+  ACTIVE = 'ACTIVE',
+  PLANNING = 'PLANNING',
+  COMPLETED = 'COMPLETED',
+  CLOSED = 'CLOSED'
 }
 
 export enum RequestType {
   PURCHASE = 'PURCHASE',
   ADVANCE = 'ADVANCE',
-  EXPENSE = 'EXPENSE',
-  SITE_CREATION = 'SITE_CREATION'
+  SERVICE = 'SERVICE'
 }
 
-export interface WorkItem {
+export interface Project {
   id: string;
-  type: WorkItemType;
-  title: string;
-  description: string;
-  status: WorkItemStatus;
-  priority: Priority;
-  createdBy: string;
-  assigneeId?: string;
-  companyId: string;
-  siteId: string;
-  projectId: string; // Zorunlu Proje İlişkisi
-  dueDate?: string;
-  progress?: number;
-  attachments: Attachment[];
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
-  requestData?: any;
-  completionNote?: string;
-  completedAt?: string;
-  completedBy?: string;
-  raci?: any[];
-  timeline?: TimelineEvent[];
+  name: string;
+  projectCode: string;
+  code: string;
+  status: ProjectStatus;
+  startDate: string;
+  totalBudget: number;
+  clientName: string;
+  locationCity: string;
+  primaryManagerId: string;
+}
+
+export interface Site {
+  id: string;
+  projectId: string;
+  name: string;
+  siteCode: string;
+  code: string;
+  status: SiteStatus;
+  budgetMonthlyLimit: number;
+  fieldTeam: string[];
+  leadUserId: string;
+  riskLevel: 'LOW' | 'MED' | 'HIGH';
+}
+
+export interface Budget {
+  id: string;
+  scopeId: string;
+  scopeType: 'SITE' | 'PROJECT';
+  amount: number;
+  consumed: number;
+  period: string;
+  overLimitRoleRequired: Role;
 }
 
 export interface Message {
@@ -257,48 +111,12 @@ export interface Message {
   senderId: string;
   content: string;
   timestamp: string;
-  reactions: any[];
+  reactions: string[];
   parentId?: string;
-  linkedWorkItemId?: string;
-  attachments?: Attachment[];
-  replyCount?: number;
   isBotMessage?: boolean;
-  botData?: any;
-}
-
-export interface Notification {
-  id: string;
-  userId: string;
-  type: string;
-  title: string;
-  content: string;
-  workItemId?: string;
-  isRead: boolean;
-  createdAt: string;
-}
-
-export interface Organization {
-  id: string;
-  name: string;
-  type: 'COMPANY' | 'SITE';
-  parentId?: string;
-}
-
-export interface Channel {
-  id: string;
-  name: string;
-  topic: string;
-  isPrivate: boolean;
-}
-
-export interface Board {
-  id: string;
-  name: string;
-}
-
-export interface List {
-  id: string;
-  name: string;
+  botData?: BotContent;
+  linkedWorkItemId?: string;
+  replyCount?: number;
 }
 
 export interface Card {
@@ -308,23 +126,38 @@ export interface Card {
   assignees: string[];
   checklists: {
     id: string;
-    items: { id: string; title: string; isDone: boolean }[];
+    items: {
+      id: string;
+      title: string;
+      isDone: boolean;
+    }[];
   }[];
 }
 
-export interface Task {
+export interface List {
   id: string;
-  title: string;
-  status: string;
-  priority: string;
-  assigneeId: string;
+  name: string;
 }
 
-export interface ToastMessage {
+export interface Notification {
   id: string;
-  type: 'success' | 'error' | 'info' | 'warning';
+  type: 'mention' | 'assignment' | 'reaction' | 'info';
   title: string;
-  message: string;
+  content: string;
+  createdAt: string;
+  isRead: boolean;
+}
+
+export interface FinancialTransaction {
+  id: string;
+  projectId: string;
+  siteId: string;
+  type: 'EXPENSE' | 'INCOME';
+  title: string;
+  amount: number;
+  category: string;
+  date: string;
+  vendor?: string;
 }
 
 export interface BotContent {
@@ -349,4 +182,198 @@ export interface BotContent {
   missingInfo: string[];
 }
 
+export interface WorkflowStep {
+  id: string;
+  stepNo: number;
+  mode: 'ROLE' | 'USER';
+  roleRequired: Role;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  requireNote: boolean;
+  userId?: string;
+  decidedAt?: string;
+  note?: string;
+}
+
+export interface WorkflowDefinition {
+  id: string;
+  name: string;
+  appliesTo: RequestType;
+  isActive: boolean;
+  steps: WorkflowStep[];
+  conditions: {
+    field: string;
+    operator: '>' | '<' | '==';
+    value: any;
+  }[];
+}
+
 export type RaciRole = 'R' | 'A' | 'C' | 'I';
+
+export interface RaciEntry {
+  workItemId: string;
+  userId: string;
+  role: RaciRole;
+}
+
+export interface WorkItem {
+  id: string;
+  type: WorkItemType;
+  title: string;
+  description: string;
+  status: WorkItemStatus;
+  priority: Priority;
+  projectId: string;
+  siteId: string;
+  createdBy: string;
+  assigneeId?: string;
+  amount: number;
+  currency: string;
+  quantity?: number;
+  unit?: string;
+  requestedDate: string;
+  deadline?: string;
+  tags: string[];
+  attachments: Attachment[];
+  timeline: TimelineEvent[];
+  procurementData?: {
+    poNumber?: string;
+    orderDate?: string;
+    deliveryDate?: string;
+    vendorName?: string;
+    offers?: Attachment[];
+  };
+  invoice?: {
+    cariName?: string;
+    invoiceNo: string;
+    invoiceDate: string;
+    currency: string;
+    netAmount: number;
+    vatRate: number;
+    vatAmount: number;
+    totalAmount: number;
+    dueDate?: string;
+    attachments: Attachment[];
+  };
+  payment?: {
+    paymentStatus: 'PLANNED' | 'PAID';
+    paidDate?: string;
+    paidAmount?: number;
+    paymentNote?: string;
+    linkedCashTxnId?: string;
+  };
+  updatedAt?: string;
+  companyId?: string;
+  progress?: number;
+  createdAt: string;
+  // Added fields to resolve missing property errors
+  requestData?: {
+    amount: number;
+    currency: string;
+    category: string;
+    costCenter?: string;
+    type?: RequestType;
+    items?: any[];
+    approvalChain: {
+      stepNo: number;
+      roleRequired: Role;
+      status: 'PENDING' | 'APPROVED' | 'REJECTED';
+      userId?: string;
+      decidedAt?: string;
+      note?: string;
+    }[];
+    vendor?: string;
+  };
+  raci?: RaciEntry[];
+}
+
+export interface CashAccount {
+  id: string;
+  name: string;
+  type: 'CASH' | 'BANK' | 'CARD';
+  currency: string;
+}
+
+export interface CashTxn {
+  id: string;
+  projectId: string;
+  type: 'IN' | 'OUT' | 'TRANSFER';
+  amount: number;
+  currency: string;
+  date: string;
+  accountId: string;
+  toAccountId?: string;
+  category: string;
+  counterpartyName?: string;
+  description: string;
+  workItemId?: string;
+  attachments: Attachment[];
+  createdBy: string;
+  createdAt: string;
+  status: 'POSTED' | 'CANCELLED';
+}
+
+export interface Attachment {
+  id: string;
+  name: string;
+  url: string;
+  type: string;
+  uploadedBy: string;
+  createdAt: string;
+  size: number;
+}
+
+export interface TimelineEvent {
+  id: string;
+  type: 'STATUS_CHANGE' | 'COMMENT' | 'SYSTEM' | 'APPROVAL' | 'REJECTION' | 'NEED_INFO' | 'PR_CREATED' | 'PAID' | 'INVOICED';
+  actorId: string;
+  actorName: string;
+  summary: string;
+  note?: string;
+  timestamp: string;
+  metadata?: any;
+}
+
+export interface User {
+  id: string;
+  name: string;
+  role: Role;
+  avatar: string;
+  companyId: string;
+  status: 'online' | 'away' | 'offline';
+  allowedProjectIds: string[];
+}
+
+export interface MetricSummary {
+  pendingApprovals: number;
+  activeTasks: number;
+  criticalIssues: number;
+  activeWorkforce: number;
+  totalWorkforce: number;
+  financials: {
+    approvedExpenses: number;
+    pendingExpenses: number;
+    totalIncome: number;
+    currency: string;
+  };
+  activeRequests?: number;
+  monthlySpend?: number;
+}
+
+export interface ToastMessage {
+  id: string;
+  type: 'success' | 'error' | 'info' | 'warning';
+  title: string;
+  message: string;
+}
+
+export interface AuditEvent {
+  id: string;
+  type: string;
+  actorId: string;
+  actorName: string;
+  entityType: 'WORK_ITEM' | 'PROJECT' | 'SITE' | 'USER';
+  entityId: string;
+  summary: string;
+  createdAt: string;
+  metadata?: any;
+}

@@ -1,151 +1,188 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { MOCK_USERS } from './constants';
-import { User, ToastMessage, UserPreferences, MetricSummary, Project } from './types';
-import { translations, Language } from './i18n';
+import { User, ToastMessage, MetricSummary, Role } from './types';
+import { translations, Language, getTranslation } from './i18n';
 import { ApiService } from './services/api';
+import { formatCurrencyTR } from './utils/formatters';
 
-// Components
+// Components & Features
 import Sidebar from './components/Layout/Sidebar';
+import ProjectHeader from './components/Layout/ProjectHeader';
 import Dashboard from './components/Dashboard/Dashboard';
-import WorkItemCenter from './components/WorkItems/WorkItemCenter';
-import RequestCenter from './components/Requests/RequestCenter';
-import ProcurementCenter from './components/Procurement/ProcurementCenter';
-import AccountingDashboard from './components/Accounting/AccountingDashboard';
-import FieldOpsBoard from './components/Field/FieldOpsBoard';
+import InboxView from './features/inbox/InboxView';
+import RequestsView from './features/requests/RequestsView';
+import RequestDetailView from './features/requests/RequestDetailView';
 import ReportCenter from './components/Reports/ReportCenter';
-import ChatView from './components/Chat/ChatView';
-import ApprovalsInbox from './components/Approvals/ApprovalsInbox';
-import HRDashboard from './components/HR/HRDashboard';
+import AccountingCenter from './features/accounting/AccountingCenter';
+import ChatView from './components/Chat/ChatView'; // Ops Asistan as ChatView
 import ProfileModal from './components/Profile/ProfileModal';
 import ToastContainer from './components/Common/ToastContainer';
-import WorkflowStudio from './components/Admin/WorkflowStudio';
-import BudgetManager from './components/Finance/BudgetManager';
+import RequireProject from './components/Common/RequireProject';
+import ErrorBoundary from './components/Common/ErrorBoundary';
+
+// Admin Components
 import ProjectSiteCenter from './components/Projects/ProjectSiteCenter';
-import ProjectHeader from './components/Layout/ProjectHeader';
+import WorkflowStudio from './components/Admin/WorkflowStudio';
 
 export interface AppContextType {
   currentUser: User;
-  updateCurrentUser: (updates: Partial<User>) => void;
-  isDarkMode: boolean;
-  setDarkMode: (val: boolean) => void;
+  setCurrentUser: (u: User) => void;
+  updateCurrentUser: (u: Partial<User>) => void;
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (key: keyof typeof translations['en']) => string;
+  t: (key: string) => string;
+  formatMoney: (val: number) => string;
   isProfileOpen: boolean;
   setProfileOpen: (val: boolean) => void;
   addToast: (type: ToastMessage['type'], title: string, message: string) => void;
-  preferences: UserPreferences;
-  updatePreferences: (p: Partial<UserPreferences>) => void;
-  metrics: MetricSummary | null;
-  refreshMetrics: () => void;
+  isDarkMode: boolean;
+  setDarkMode: (val: boolean) => void;
   activeProjectId: string;
   setActiveProjectId: (id: string) => void;
-  projects: Project[];
+  projects: any[];
+  metrics: MetricSummary | null;
+  refreshMetrics: () => void;
 }
 
 export const AppContext = React.createContext<AppContextType | null>(null);
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User>(MOCK_USERS[0]);
-  const [metrics, setMetrics] = useState<MetricSummary | null>(null);
-  const [prefs, setPrefs] = useState<UserPreferences>(ApiService.getPreferences());
+  const [language, setLanguage] = useState<Language>('tr');
+  const [isDarkMode, setDarkMode] = useState(true);
   const [isProfileOpen, setProfileOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const [activeProjectId, setActiveProjectId] = useState<string>('prj-1'); // Default to first project
-  const [projects, setProjects] = useState<Project[]>([]);
-
-  const refreshMetrics = useCallback(async () => {
-    const summary = await ApiService.getMetricSummary(activeProjectId);
-    setMetrics(summary);
-  }, [activeProjectId]);
-
-  useEffect(() => {
-    ApiService.fetchProjects().then(setProjects);
-  }, []);
-
-  useEffect(() => {
-    refreshMetrics();
-    const interval = setInterval(refreshMetrics, 30000);
-    return () => clearInterval(interval);
-  }, [refreshMetrics]);
-
-  useEffect(() => {
-    if (prefs.theme === 'dark') document.documentElement.classList.add('dark');
-    else document.documentElement.classList.remove('dark');
-  }, [prefs]);
-
+  const [projects, setProjects] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState<MetricSummary | null>(null);
+  
+  const [searchParams, setSearchParams] = useSearchParams();
+  const storageKey = "mavriops.selectedProjectId";
+  
   const addToast = useCallback((type: ToastMessage['type'], title: string, message: string) => {
     const id = Math.random().toString(36).substr(2, 9);
-    setToasts(prev => [...prev, { id, type, title, message }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
+    setToasts(prev => {
+      if (prev.some(t => t.title === title && t.message === message)) return prev;
+      return [...prev, { id, type, title, message }];
+    });
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
   }, []);
 
-  const updatePreferences = (newPrefs: Partial<UserPreferences>) => {
-    const updated = { ...prefs, ...newPrefs };
-    setPrefs(updated);
-    ApiService.savePreferences(updated);
-    addToast('success', 'Ayarlar Kaydedildi', 'Kullanıcı tercihleriniz başarıyla güncellendi.');
+  const [activeProjectId, setActiveProjectIdState] = useState<string>(() => {
+     const urlId = searchParams.get('projectId');
+     const storedId = localStorage.getItem(storageKey);
+     const targetId = urlId || storedId || '';
+     if (targetId && !currentUser.allowedProjectIds.includes(targetId)) return '';
+     return targetId;
+  });
+
+  useEffect(() => {
+    const urlId = searchParams.get('projectId');
+    if (urlId !== null && urlId !== activeProjectId) {
+      if (currentUser.allowedProjectIds.includes(urlId)) {
+        setActiveProjectIdState(urlId);
+      } else if (urlId !== '') {
+        setActiveProjectIdState(urlId); 
+      }
+    }
+  }, [searchParams, activeProjectId, currentUser.allowedProjectIds]);
+
+  const setActiveProjectId = useCallback((id: string) => {
+      if (id === activeProjectId) return;
+      if (id !== '' && !currentUser.allowedProjectIds.includes(id)) {
+        addToast('error', 'Erişim Hatası', 'Bu projeyi seçmek için yetkiniz bulunmuyor.');
+        return;
+      }
+      setActiveProjectIdState(id);
+      if (id) {
+        localStorage.setItem(storageKey, id);
+        setSearchParams({ projectId: id }, { replace: true });
+      } else {
+        localStorage.removeItem(storageKey);
+        setSearchParams({}, { replace: true });
+      }
+  }, [activeProjectId, setSearchParams, currentUser.allowedProjectIds, addToast]);
+
+  const updateCurrentUser = (updates: Partial<User>) => {
+    setCurrentUser(prev => ({ ...prev, ...updates }));
   };
 
-  const t = (key: keyof typeof translations['en']): string => {
-    return (translations[prefs.language as Language] as any)[key] || (translations['en'] as any)[key] || key;
-  };
+  const refreshMetrics = useCallback(async () => {
+    if (!activeProjectId || !currentUser.allowedProjectIds.includes(activeProjectId)) return;
+    const data = await ApiService.getMetricSummary(activeProjectId);
+    setMetrics(data);
+  }, [activeProjectId, currentUser.allowedProjectIds]);
+
+  useEffect(() => {
+    ApiService.fetchProjects().then(prjs => {
+      setProjects(prjs);
+      if (activeProjectId) refreshMetrics();
+    });
+  }, [activeProjectId, refreshMetrics]);
+
+  useEffect(() => {
+    if (isDarkMode) document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
+  }, [isDarkMode]);
+
+  const t = (key: string): string => getTranslation(key);
+
+  const formatMoney = (val: number): string => formatCurrencyTR(val);
+
+  const isAdmin = currentUser.role === Role.ADMIN || currentUser.role === Role.OWNER;
 
   const contextValue = useMemo(() => ({
-    currentUser,
-    updateCurrentUser: (u: any) => setCurrentUser(prev => ({ ...prev, ...u })),
-    isDarkMode: prefs.theme === 'dark',
-    setDarkMode: (val: boolean) => updatePreferences({ theme: val ? 'dark' : 'light' }),
-    language: prefs.language as Language,
-    setLanguage: (lang: Language) => updatePreferences({ language: lang }),
-    t,
-    isProfileOpen,
-    setProfileOpen,
-    addToast,
-    preferences: prefs,
-    updatePreferences,
-    metrics,
-    refreshMetrics,
-    activeProjectId,
-    setActiveProjectId,
-    projects
-  }), [currentUser, prefs, isProfileOpen, metrics, refreshMetrics, activeProjectId, projects]);
+    currentUser, setCurrentUser, updateCurrentUser,
+    language, setLanguage, t, formatMoney,
+    isProfileOpen, setProfileOpen,
+    addToast, isDarkMode, setDarkMode,
+    activeProjectId, setActiveProjectId,
+    projects, metrics, refreshMetrics
+  }), [currentUser, language, isProfileOpen, isDarkMode, activeProjectId, projects, metrics, refreshMetrics, setActiveProjectId, addToast]);
 
   return (
     <AppContext.Provider value={contextValue}>
-      <Router>
-        <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950 transition-all duration-300">
+      <ErrorBoundary>
+        <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
           <Sidebar />
-          <main className="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 relative overflow-hidden">
+          <main className="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 overflow-hidden relative">
             <ProjectHeader />
             <div className="flex-1 overflow-y-auto no-scrollbar">
               <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/projects" element={<ProjectSiteCenter />} />
-                <Route path="/work-items" element={<WorkItemCenter />} />
-                <Route path="/approvals" element={<ApprovalsInbox />} />
-                <Route path="/requests" element={<RequestCenter />} />
-                <Route path="/procurement" element={<ProcurementCenter />} />
-                <Route path="/accounting" element={<AccountingDashboard />} />
-                <Route path="/field" element={<FieldOpsBoard />} />
-                <Route path="/reports" element={<ReportCenter />} />
-                <Route path="/hr" element={<HRDashboard />} />
-                <Route path="/chat" element={<ChatView />} />
-                <Route path="/chat/:channelId" element={<ChatView />} />
-                <Route path="/admin/workflow" element={<WorkflowStudio />} />
-                <Route path="/finance/budgets" element={<BudgetManager />} />
-                <Route path="*" element={<Navigate to="/" />} />
+                <Route path="/dashboard" element={<RequireProject><Dashboard /></RequireProject>} />
+                <Route path="/requests" element={<RequireProject><RequestsView /></RequireProject>} />
+                <Route path="/requests/:id" element={<RequireProject><RequestDetailView /></RequireProject>} />
+                <Route path="/accounting" element={<RequireProject><AccountingCenter /></RequireProject>} />
+                <Route path="/inbox" element={<RequireProject><InboxView /></RequireProject>} />
+                <Route path="/assistant" element={<RequireProject><ChatView /></RequireProject>} />
+                <Route path="/reports" element={<RequireProject><ReportCenter /></RequireProject>} />
+                
+                {isAdmin && (
+                  <>
+                    <Route path="/admin/projects" element={<ProjectSiteCenter />} />
+                    <Route path="/admin/workflows" element={<WorkflowStudio />} />
+                    <Route path="/admin/users" element={<div className="p-20 text-center uppercase font-black text-slate-300">Kullanıcı Yönetimi</div>} />
+                    <Route path="/admin/masterdata" element={<div className="p-20 text-center uppercase font-black text-slate-300">Ana Veri Hub</div>} />
+                  </>
+                )}
+
+                <Route path="*" element={<Navigate to="/dashboard" />} />
               </Routes>
             </div>
           </main>
           <ProfileModal />
           <ToastContainer toasts={toasts} removeToast={(id) => setToasts(t => t.filter(x => x.id !== id))} />
         </div>
-      </Router>
+      </ErrorBoundary>
     </AppContext.Provider>
   );
 };
+
+const App: React.FC = () => (
+  <Router>
+    <AppContent />
+  </Router>
+);
 
 export default App;

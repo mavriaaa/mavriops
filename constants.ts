@@ -1,206 +1,137 @@
 
-// @google/genai guidelines followed: Using consistent mock data and correct types.
-import { Role, Project, Site, ProjectStatus, SiteStatus, WorkItemType, WorkItemStatus, Priority, WorkItem, Organization, Channel, Board, List, Card, RequestType, Budget, Task, User, WorkflowDefinition } from './types';
+import { Role, WorkItemStatus, WorkItemType, Priority, WorkItem, User, Project, Site, ProjectStatus, SiteStatus, Budget } from './types';
 
-export const ENABLE_WORKFLOW_BUILDER = true;
-export const ENABLE_BUDGETS = true;
-export const ENABLE_RACI = true;
+export const MOCK_USERS: User[] = [
+  { id: 'u1', name: 'Ahmet Patron', role: Role.OWNER, avatar: 'https://i.pravatar.cc/150?u=u1', companyId: 'c1', status: 'online', allowedProjectIds: ['p1', 'p2'] },
+  { id: 'u2', name: 'Selin Admin', role: Role.ADMIN, avatar: 'https://i.pravatar.cc/150?u=u2', companyId: 'c1', status: 'online', allowedProjectIds: ['p1', 'p2'] },
+  { id: 'u3', name: 'Mehmet Proje Müdürü', role: Role.PROJECT_MANAGER, avatar: 'https://i.pravatar.cc/150?u=u3', companyId: 'c1', status: 'online', allowedProjectIds: ['p1'] },
+  { id: 'u4', name: 'Caner Şantiye Şefi', role: Role.SITE_CHIEF, avatar: 'https://i.pravatar.cc/150?u=u4', companyId: 'c1', status: 'online', allowedProjectIds: ['p1'] },
+  { id: 'u5', name: 'Demet Satınalma', role: Role.PROCUREMENT, avatar: 'https://i.pravatar.cc/150?u=u5', companyId: 'c1', status: 'online', allowedProjectIds: ['p1', 'p2'] },
+  { id: 'u6', name: 'Hülya Muhasebe', role: Role.ACCOUNTANT, avatar: 'https://i.pravatar.cc/150?u=u6', companyId: 'c1', status: 'online', allowedProjectIds: ['p1', 'p2'] },
+  { id: 'u7', name: 'Barış Mühendis', role: Role.EMPLOYEE, avatar: 'https://i.pravatar.cc/150?u=u7', companyId: 'c1', status: 'online', allowedProjectIds: ['p1'] },
+];
 
 export const MOCK_PROJECTS: Project[] = [
-  {
-    id: 'prj-1',
-    projectCode: 'PRJ-2024-0001',
-    name: 'Mavri Tower Residence',
-    clientName: 'Global Investment Group',
-    locationCity: 'İstanbul',
-    locationDistrict: 'Sarıyer',
-    startDate: '2024-01-10',
-    status: ProjectStatus.ACTIVE,
-    ownerUserId: 'u1',
-    primaryManagerId: 'u2',
-    totalBudget: 150000000,
-    currency: 'TRY',
-    managers: ['u2'],
-    description: 'Şehir merkezinde lüks konut ve ofis projesi.',
-    tags: ['Lüks', 'Konut', 'Merkezi'],
-    createdAt: '2024-01-01T10:00:00Z',
-    updatedAt: '2024-05-20T10:00:00Z'
-  },
-  {
-    id: 'prj-2',
-    projectCode: 'PRJ-2024-0002',
-    name: 'Ege Entegre GES Tesisleri',
-    clientName: 'EnerjiSA Entegre',
-    locationCity: 'İzmir',
-    locationDistrict: 'Aliağa',
-    startDate: '2024-03-15',
-    status: ProjectStatus.DRAFT,
-    ownerUserId: 'u1',
-    primaryManagerId: 'u2',
-    totalBudget: 450000000,
-    currency: 'TRY',
-    managers: ['u2'],
-    description: '50MW Güneş Enerji Santrali kurulumu ve şebeke entegrasyonu.',
-    tags: ['Enerji', 'GES', 'Yeşil Dönüşüm'],
-    createdAt: '2024-03-01T09:00:00Z',
-    updatedAt: '2024-03-01T09:00:00Z'
-  }
+  { id: 'p1', name: 'Mavri Tower Residence', projectCode: 'PRJ-001', code: 'PRJ-001', status: ProjectStatus.ACTIVE, startDate: '2024-01-01', totalBudget: 5000000, clientName: 'Mavri Corp', locationCity: 'İstanbul', primaryManagerId: 'u3' },
+  { id: 'p2', name: 'Ege Entegre GES', projectCode: 'PRJ-002', code: 'PRJ-002', status: ProjectStatus.ACTIVE, startDate: '2024-02-15', totalBudget: 12000000, clientName: 'Ege Power', locationCity: 'İzmir', primaryManagerId: 'u3' }
 ];
 
 export const MOCK_SITES: Site[] = [
-  {
-    id: 'site-a',
-    siteCode: 'SAHA-PRJ1-001',
-    projectId: 'prj-1',
-    name: 'İstanbul Kuzey Entegrasyonu',
-    type: 'INSAAT',
-    address: 'Ayazağa Mah. No:12',
-    status: SiteStatus.ACTIVE,
-    budgetMonthlyLimit: 500000,
-    riskLevel: 'MED',
-    leadUserId: 'u4',
-    fieldTeam: ['u4', 'u5'],
-    communicationChannelId: 'c1',
-    createdAt: '2024-01-05T12:00:00Z',
-    updatedAt: '2024-05-10T12:00:00Z'
-  },
-  {
-    id: 'site-c',
-    siteCode: 'SAHA-PRJ2-001',
-    projectId: 'prj-2',
-    name: 'Aliağa Panel Sahası 1',
-    type: 'GES',
-    status: SiteStatus.PLANNING,
-    budgetMonthlyLimit: 1200000,
-    riskLevel: 'LOW',
-    leadUserId: 'u4',
-    fieldTeam: [],
-    communicationChannelId: 'c4',
-    createdAt: '2024-03-15T08:00:00Z',
-    updatedAt: '2024-03-15T08:00:00Z'
-  }
+  { id: 's1', projectId: 'p1', name: 'A Blok Temel', siteCode: 'SAHA-01', code: 'SAHA-01', status: SiteStatus.ACTIVE, budgetMonthlyLimit: 500000, fieldTeam: ['u7'], leadUserId: 'u4', riskLevel: 'LOW' },
+  { id: 's2', projectId: 'p1', name: 'B Blok Kaba İnşaat', siteCode: 'SAHA-02', code: 'SAHA-02', status: SiteStatus.ACTIVE, budgetMonthlyLimit: 750000, fieldTeam: ['u7'], leadUserId: 'u4', riskLevel: 'LOW' },
+  { id: 's3', projectId: 'p2', name: 'Güneş Paneli Sahası 1', siteCode: 'SAHA-03', code: 'SAHA-03', status: SiteStatus.ACTIVE, budgetMonthlyLimit: 1000000, fieldTeam: ['u7'], leadUserId: 'u4', riskLevel: 'LOW' }
 ];
 
-export const MOCK_USERS: User[] = [
-  { id: 'u1', name: 'Sinem CEO', role: Role.OWNER, avatar: 'https://i.pravatar.cc/150?u=u1', departmentId: 'dept-1', companyId: 'comp-1', status: 'online' },
-  { id: 'u2', name: 'Deniz Müdür', role: Role.MANAGER, avatar: 'https://i.pravatar.cc/150?u=u2', departmentId: 'dept-1', companyId: 'comp-1', status: 'online' },
-  { id: 'u3', name: 'Canan Satınalma', role: Role.PROCUREMENT, avatar: 'https://i.pravatar.cc/150?u=u3', departmentId: 'dept-1', companyId: 'comp-1', status: 'online' },
-  { id: 'u4', name: 'Barış Mühendis', role: Role.EMPLOYEE, avatar: 'https://i.pravatar.cc/150?u=u4', departmentId: 'dept-1', companyId: 'comp-1', status: 'online' },
-  { id: 'u5', name: 'Mert Muhasebe', role: Role.ACCOUNTANT, avatar: 'https://i.pravatar.cc/150?u=u5', departmentId: 'dept-1', companyId: 'comp-1', status: 'online' },
-];
-
-export const INITIAL_SEED_DATA: WorkItem[] = [
+export const INITIAL_WORK_ITEMS: WorkItem[] = [
   {
-    id: 'R-7001',
-    type: WorkItemType.REQUEST,
-    title: 'Acil Beton Tedariği - Faz 2',
-    description: 'İstanbul Kuzey sahası için 400m3 C35 beton ihtiyacı.',
-    status: WorkItemStatus.IN_REVIEW,
+    id: 'REQ-1001',
+    type: WorkItemType.MATERIAL,
+    title: 'Acil Beton Tedariği - C35',
+    description: 'Saha-01 için 400m3 C35 beton ihtiyacı bulunmaktadır.',
+    status: WorkItemStatus.SUBMITTED,
     priority: Priority.CRITICAL,
-    createdBy: 'u4',
-    assigneeId: 'u2',
-    companyId: 'comp-1',
-    siteId: 'site-a',
-    projectId: 'prj-1',
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-    updatedAt: new Date().toISOString(),
+    projectId: 'p1',
+    siteId: 's1',
+    createdBy: 'u7',
+    amount: 850000,
+    currency: 'TRY',
+    quantity: 400,
+    unit: 'm3',
+    requestedDate: '2024-06-01',
+    createdAt: '2024-06-01',
+    tags: ['Acil', 'Beton'],
     attachments: [],
-    tags: ['Satınalma', 'Kritik'],
+    timeline: [
+      { id: 't1', type: 'SYSTEM', actorId: 'u7', actorName: 'Barış Mühendis', summary: 'Talep oluşturuldu.', timestamp: new Date().toISOString() }
+    ],
     requestData: {
       amount: 850000,
       currency: 'TRY',
       category: 'MALZEME',
       approvalChain: [
-        { stepNo: 1, roleRequired: Role.MANAGER, status: 'APPROVED', userId: 'u2', decidedAt: new Date().toISOString(), note: 'Saha planına uygun.' },
-        { stepNo: 2, roleRequired: Role.DIRECTOR, status: 'PENDING' }
+        { stepNo: 1, roleRequired: Role.MANAGER, status: 'PENDING' }
       ]
+    }
+  },
+  {
+    id: 'ACC-8801',
+    type: WorkItemType.MATERIAL,
+    title: 'Demir Donatı - Faz 1 Teslimatı',
+    description: 'Şantiyeye teslim edildi, fatura bekleniyor.',
+    status: WorkItemStatus.DELIVERED,
+    priority: Priority.HIGH,
+    projectId: 'p1',
+    siteId: 's1',
+    createdBy: 'u4',
+    amount: 125000,
+    currency: 'TRY',
+    requestedDate: '2024-05-10',
+    createdAt: '2024-05-10',
+    tags: ['Muhasebe-Test'],
+    attachments: [],
+    timeline: [{ id: 't-881', type: 'STATUS_CHANGE', actorId: 'u5', actorName: 'Demet Satınalma', summary: 'Teslimat onaylandı.', timestamp: new Date().toISOString() }],
+    procurementData: { vendorName: 'Mavri Çelik A.Ş.', poNumber: 'PO-992' }
+  },
+  {
+    id: 'ACC-8802',
+    type: WorkItemType.SERVICE,
+    title: 'Hafriyat İşçilik Faturası',
+    description: 'Faturası işlendi, ödeme bekliyor.',
+    status: WorkItemStatus.INVOICED,
+    priority: Priority.MEDIUM,
+    projectId: 'p1',
+    siteId: 's2',
+    createdBy: 'u4',
+    amount: 45000,
+    currency: 'TRY',
+    requestedDate: '2024-05-12',
+    createdAt: '2024-05-12',
+    tags: ['Muhasebe-Test'],
+    attachments: [],
+    timeline: [{ id: 't-882', type: 'INVOICED', actorId: 'u6', actorName: 'Hülya Muhasebe', summary: 'Fatura sisteme işlendi.', timestamp: new Date().toISOString() }],
+    invoice: {
+      cariName: 'Toprak Lojistik Ltd.',
+      invoiceNo: 'FT-2024-001',
+      invoiceDate: '2024-05-15',
+      currency: 'TRY',
+      netAmount: 37500,
+      vatRate: 20,
+      vatAmount: 7500,
+      totalAmount: 45000,
+      dueDate: '2024-06-15',
+      attachments: []
     },
-    timeline: [
-        { id: 't1', type: 'APPROVAL', actorId: 'u2', actorName: 'Deniz Müdür', summary: 'Müdür onayı verildi.', timestamp: new Date().toISOString() },
-        { id: 't0', type: 'SYSTEM', actorId: 'u4', actorName: 'Barış Mühendis', summary: 'Talep oluşturuldu.', timestamp: new Date(Date.now() - 86400000).toISOString() }
-    ]
+    payment: { paymentStatus: 'PLANNED' }
   }
 ];
 
-export const MOCK_CHANNELS: Channel[] = [
-  { id: 'c1', name: 'genel', topic: 'Genel Operasyonel Haberleşme', isPrivate: false },
-  { id: 'c2', name: 'duyurular', topic: 'Kurumsal Duyurular', isPrivate: false },
+export const MOCK_CHANNELS = [
+  { id: 'c1', name: 'genel-saha', isPrivate: false, topic: 'Ana Saha Haberleşme' },
+  { id: 'c2', name: 'lojistik', isPrivate: false, topic: 'Sevkiyat ve Araç Takibi' }
 ];
 
-// FIX: Export missing mock data for Kanban boards
-export const MOCK_BOARDS: Board[] = [
-  { id: 'b1', name: 'Saha Operasyon Takibi' },
-  { id: 'b2', name: 'Tedarik Zinciri Planlama' }
+export const MOCK_BOARDS = [{ id: 'b1', name: 'İş Takibi' }];
+export const MOCK_LISTS = [
+  { id: 'l1', name: 'ToDo' },
+  { id: 'l2', name: 'Doing' },
+  { id: 'l3', name: 'Done' }
+];
+export const MOCK_CARDS = [
+  { id: 'ca1', listId: 'l1', title: 'Beton Dökümü Planla', assignees: ['u7'], checklists: [] },
+  { id: 'ca2', listId: 'l2', title: 'Demir Bağlama', assignees: ['u7'], checklists: [] }
 ];
 
-export const MOCK_LISTS: List[] = [
-  { id: 'l1', name: 'Yapılacaklar' },
-  { id: 'l2', name: 'Devam Edenler' },
-  { id: 'l3', name: 'Kontrol / Onay' },
-  { id: 'l4', name: 'Tamamlananlar' }
+export const MOCK_TASKS = [
+  { id: 't1', title: 'Task 1', status: 'TODO', priority: 'HIGH', assigneeId: 'u7' }
 ];
 
-export const MOCK_CARDS: Card[] = [
-  { 
-    id: 'card-1', 
-    listId: 'l1', 
-    title: 'Beton Numunesi Alımı', 
-    assignees: ['u4'], 
-    checklists: [{ id: 'cl1', items: [{ id: 'cli1', title: 'Laboratuvar Onayı', isDone: false }] }] 
-  },
-  { 
-    id: 'card-2', 
-    listId: 'l2', 
-    title: 'Saha Temizliği ve Düzenleme', 
-    assignees: ['u4', 'u5'], 
-    checklists: [] 
-  }
-];
+export const MOCK_WORKFLOWS = [];
 
-// FIX: Export missing mock data for Task Board
-export const MOCK_TASKS: Task[] = [
-  { id: 'task-1', title: 'Saha Güvenlik Denetimi', status: 'TODO', priority: 'HIGH', assigneeId: 'u4' },
-  { id: 'task-2', title: 'Malzeme Kabulü ve İstifleme', status: 'TODO', priority: 'MEDIUM', assigneeId: 'u2' },
-  { id: 'task-3', title: 'Haftalık Rapor Hazırlığı', status: 'DOING', priority: 'LOW', assigneeId: 'u1' }
-];
-
-// FIX: Export missing mock data for Workflow Service
-export const MOCK_WORKFLOWS: WorkflowDefinition[] = [
-  {
-    id: 'wf-1',
-    name: 'Standart Satınalma Akışı',
-    appliesTo: RequestType.PURCHASE,
-    isActive: true,
-    steps: [
-      { id: 'ws1', stepNo: 1, mode: 'ROLE', roleRequired: Role.MANAGER, requireNote: true },
-      { id: 'ws2', stepNo: 2, mode: 'ROLE', roleRequired: Role.DIRECTOR, requireNote: true }
-    ],
-    conditions: [
-      { field: 'amount', operator: '>', value: 5000 }
-    ]
-  }
-];
-
-// FIX: Export missing mock data for Budget Service
 export const MOCK_BUDGETS: Budget[] = [
-  {
-    id: 'bud-1',
-    scopeType: 'SITE',
-    scopeId: 'site-a',
-    period: 'MONTHLY',
-    amount: 500000,
-    currency: 'TRY',
-    consumed: 120000,
-    overLimitRoleRequired: Role.DIRECTOR
-  },
-  {
-    id: 'bud-2',
-    scopeType: 'SITE',
-    scopeId: 'site-c',
-    period: 'MONTHLY',
-    amount: 1200000,
-    currency: 'TRY',
-    consumed: 0,
-    overLimitRoleRequired: Role.MANAGER
-  }
+  { id: 'b1', scopeId: 's1', scopeType: 'SITE', amount: 1000000, consumed: 850000, period: 'Haziran 2024', overLimitRoleRequired: Role.OWNER }
 ];
+
+export const ENABLE_WORKFLOW_BUILDER = true;
+export const ENABLE_BUDGETS = true;
+export const INITIAL_SEED_DATA = INITIAL_WORK_ITEMS;
+export const ENABLE_RACI = true;
